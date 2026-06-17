@@ -77,7 +77,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .overdue-tag{font-size:10px;font-weight:600;color:var(--red);background:var(--red-bg);padding:2px 6px;border-radius:4px;}
 .marking-tag{font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 6px;border-radius:4px;}
 .est-tag{font-size:13px;color:var(--text-3);font-family:'DM Mono',monospace;}
-.pts-tag{font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:3px 8px;border-radius:5px;}
+.pts-tag{font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:3px 8px;border-radius:5px;width:46px;text-align:center;display:inline-block;box-sizing:border-box;}
 .class-time-tag{font-size:13px;font-weight:600;color:var(--orange);font-family:'DM Mono',monospace;}
 .class-loc-tag{font-size:13px;color:var(--text-3);}
 .task-right{display:flex;align-items:center;gap:7px;flex-shrink:0;}
@@ -86,7 +86,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .acc-good{background:var(--green-bg);color:var(--green);}.acc-ok{background:var(--amber-bg);color:var(--amber);}.acc-bad{background:var(--red-bg);color:var(--red);}
 .review-tag{font-size:12px;font-weight:600;padding:3px 8px;border-radius:5px;}
 .rt-needed{background:var(--amber-bg);color:var(--amber);}.rt-done{background:var(--purple-bg);color:var(--purple);}
-.action-btn{padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--border2);background:var(--bg);color:var(--text-2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;}
+.action-btn{padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid var(--border2);background:var(--bg);color:var(--text-2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;white-space:nowrap;min-width:100px;text-align:center;}
 .action-btn:hover{background:var(--border);color:var(--text);}
 .action-btn.primary{background:var(--accent);color:white;border-color:var(--accent);}
 .action-btn.primary:hover{background:#2949f5;}
@@ -636,7 +636,7 @@ function pill(s){
   const map={Math:'pill-Math',Reading:'pill-Reading',Writing:'pill-Writing',TS:'pill-TS',Other:'pill-Other',Chinese:'pill-Chinese',Piano:'pill-Piano',Swimming:'pill-Swimming'};
   return `<span class="subject-pill ${map[s]||'pill-Other'}">${s}</span>`;
 }
-function durFmt(s){ if(!s) return ''; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60); let parts=[]; if(h>0) parts.push(h+'h'); if(m>0||h>0) parts.push(m+'m'); parts.push(sec+'s'); return parts.join(' '); }
+function durFmt(s){ if(!s) return ''; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60); let parts=[]; if(h>0) parts.push(h+'h'); if(m>0) parts.push(m+'m'); if(sec>0) parts.push(sec+'s'); return parts.length?parts.join(' '):'0s'; }
 function accPct(tq,wq){ if(!tq) return null; return Math.round(((tq-(wq||0))/tq)*100); }
 function accBadge(pct){ if(pct===null) return ''; const c=pct>=90?'acc-good':pct>=70?'acc-ok':'acc-bad'; return `<span class="acc-badge ${c}">${pct}%</span>`; }
 function fmtSecs(s){ const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60; return `${pad(h)}:${pad(m)}:${pad(sec)}`; }
@@ -665,7 +665,7 @@ function taskHTML(t){
     if(st==='stopped') right+=`<button class="action-btn primary" onclick="expandAndStart('${t.id}',event)">▶ Continue</button>`;
     if(st==='running') right+=`<span class="review-tag" style="background:var(--accent-bg);color:var(--accent)">● Recording</span>`;
     if(st==='paused')  right+=`<span class="review-tag rt-needed">⏸ Paused</span>`;
-    if(t.basePoints)   right+=`<span class="pts-tag">${t.basePoints}pts</span>`;
+    if(t.basePoints)   right+=`<span class="pts-tag">+${t.basePoints}pts</span>`;
   }
   right+=`<span class="chevron ${exp?'open':''}">▾</span>`;
   const meta = `${pill(t.subject)}<span class="task-date">${fmt(t.date)}</span>${isOverdue?'<span class="overdue-tag">Overdue</span>':''}${t.estSecs?`<span class="est-tag">est. ${durFmt(t.estSecs)}</span>`:''}`;
@@ -1543,7 +1543,7 @@ function renderRecurringList(){
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
         <div>
           <div class="ri-name">${r.type==='class'?'🏫 ':'📝 '}${r.name} <span style="font-size:11px;font-weight:400;color:var(--text-3)">· ${r.subject}</span></div>
-          <div class="ri-meta"><span>${freqLabel}</span><span>${r.startDate}${r.endDate?' → '+r.endDate:' → no end'}</span>${r.estSecs?`<span>est. ${durFmt(r.estSecs)}</span>`:''}${r.basePoints?`<span>${r.basePoints}pts</span>`:''}${timeStr?`<span>🕓 ${timeStr}</span>`:''}${r.location?`<span>📍${r.location}</span>`:''}${r.skipDates&&r.skipDates.length?`<span style="color:var(--amber)">${r.skipDates.length} skip period(s)</span>`:''}</div>
+          <div class="ri-meta"><span>${freqLabel}</span><span>${r.startDate}${r.endDate?' → '+r.endDate:' → no end'}</span>${r.estSecs?`<span>est. ${durFmt(r.estSecs)}</span>`:''}${r.basePoints?`<span>+${r.basePoints}pts</span>`:''}${timeStr?`<span>🕓 ${timeStr}</span>`:''}${r.location?`<span>📍${r.location}</span>`:''}${r.skipDates&&r.skipDates.length?`<span style="color:var(--amber)">${r.skipDates.length} skip period(s)</span>`:''}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
           <span class="ri-status ${!r.active?'ri-paused':isSkipped?'ri-paused':'ri-active'}">${!r.active?'Paused':isSkipped?'Skipped':'Active'}</span>
