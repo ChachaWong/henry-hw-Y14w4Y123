@@ -563,6 +563,7 @@ function getReviewTS(id){ if(!RVS[id]) RVS[id]={state:'idle',elapsed:0,sessionSt
 let currentView = 'all';
 let doneTypeFilter = 'all';
 let doneSubjectFilter = '';
+let rvDashSubjectFilter = '';
 let expandedId = null, expandedReviewId = null, pendingDoneId = null;
 let atSubject = null, atEstMins = null, atRecur = 'none';
 let acType = null, acRecur = 'none';
@@ -577,6 +578,10 @@ document.getElementById('ac-start-date').value  = fmtISO(today);
 function setDoneFilter(type, val){
   if(type==='type') doneTypeFilter=val;
   else if(type==='subject') doneSubjectFilter=val;
+  renderContent();
+}
+function setRvDashSubjectFilter(val){
+  rvDashSubjectFilter = val;
   renderContent();
 }
 
@@ -669,9 +674,16 @@ function renderContent(){
     const doneContent = filteredTasks.map(taskHTML).join('') + filteredReviews.map(reviewCardHTML).join('');
     area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Done Today</div><span class="section-badge badge-green">${filteredCount}</span></div>${filterBar}${doneContent||emptyHTML('Nothing matches this filter.')}</div>`;
   } else if(currentView==='review'){
-    const rvPend = [...allReviews.filter(t=>!t.review.done)].sort((a,b)=>(accPct(a.marking.totalQ,a.marking.wrongQ)??100)-(accPct(b.marking.totalQ,b.marking.wrongQ)??100));
-    const rvDone = allReviews.filter(t=>t.review.done);
-    area.innerHTML = sectionHTML('Review', allReviews.length, 'badge-amber', [...rvPend,...rvDone].map(reviewCardHTML).join('')||emptyHTML('No reviews yet.'));
+    const rvAllSubjects = [...new Set(allReviews.map(t=>t.subject))].sort();
+    const rvFiltered = rvDashSubjectFilter ? allReviews.filter(t=>t.subject===rvDashSubjectFilter) : allReviews;
+    const rvPend = [...rvFiltered.filter(t=>!t.review.done)].sort((a,b)=>(accPct(a.marking.totalQ,a.marking.wrongQ)??100)-(accPct(b.marking.totalQ,b.marking.wrongQ)??100));
+    const rvDone = rvFiltered.filter(t=>t.review.done);
+    const selectStyle = "padding:7px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:white;cursor:pointer";
+    const filterBar = `<div style="margin-bottom:14px"><select onchange="setRvDashSubjectFilter(this.value)" style="${selectStyle}">
+      <option value="">All subjects</option>
+      ${rvAllSubjects.map(s=>`<option value="${s}" ${rvDashSubjectFilter===s?'selected':''}>${s}</option>`).join('')}
+    </select></div>`;
+    area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Review</div><span class="section-badge badge-amber">${rvPend.length+rvDone.length}</span></div>${filterBar}${[...rvPend,...rvDone].map(reviewCardHTML).join('')||emptyHTML('No reviews yet.')}</div>`;
   }
   reattach();
 }
