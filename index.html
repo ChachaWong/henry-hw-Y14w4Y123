@@ -67,18 +67,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .task-check:hover{border-color:var(--green);background:var(--green-bg);}
 .task-check.checked{border-color:var(--green);background:var(--green);color:white;}
 .task-info{flex:1;min-width:0;}
-.task-name{font-size:16px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.task-name{font-size:17px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .task-card.done .task-name{text-decoration:line-through;color:var(--text-3);}
 .task-meta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.subject-pill{font-size:12px;font-weight:600;padding:3px 9px;border-radius:5px;}
+.subject-pill{font-size:13px;font-weight:600;padding:4px 10px;border-radius:5px;}
 .pill-Math{background:#EEF1FF;color:#3D5AFE;}.pill-Reading{background:#F0FDF4;color:#15803D;}.pill-Writing{background:#FDF4FF;color:#9333EA;}.pill-TS{background:#FFF7ED;color:#EA580C;}.pill-Other{background:var(--bg);color:var(--text-2);}.pill-Chinese{background:#FEF2F2;color:#DC2626;}.pill-Piano{background:#EFF6FF;color:#2563EB;}.pill-Swimming{background:#ECFEFF;color:#0891B2;}
-.task-date{font-size:13px;color:var(--text-3);font-family:'DM Mono',monospace;}
-.overdue-tag{font-size:10px;font-weight:600;color:var(--red);background:var(--red-bg);padding:2px 6px;border-radius:4px;}
-.marking-tag{font-size:10px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:2px 6px;border-radius:4px;}
-.est-tag{font-size:13px;color:var(--text-3);font-family:'DM Mono',monospace;}
-.pts-tag{font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:3px 8px;border-radius:5px;width:46px;text-align:center;display:inline-block;box-sizing:border-box;}
-.class-time-tag{font-size:13px;font-weight:600;color:var(--orange);font-family:'DM Mono',monospace;}
-.class-loc-tag{font-size:13px;color:var(--text-3);}
+.task-date{font-size:13px;color:var(--text-2);font-family:'DM Mono',monospace;background:var(--bg);padding:4px 9px;border-radius:5px;}
+.overdue-tag{font-size:11px;font-weight:600;color:var(--red);background:var(--red-bg);padding:3px 7px;border-radius:4px;}
+.marking-tag{font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);padding:3px 7px;border-radius:4px;}
+.est-tag{font-size:13px;color:var(--text-2);font-family:'DM Mono',monospace;background:var(--bg);padding:4px 9px;border-radius:5px;}
+.pts-tag{font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-bg);padding:4px 9px;border-radius:5px;width:50px;text-align:center;display:inline-block;box-sizing:border-box;}
+.class-time-tag{font-size:14px;font-weight:600;color:var(--orange);font-family:'DM Mono',monospace;}
+.class-loc-tag{font-size:14px;color:var(--text-3);}
 .task-right{display:flex;align-items:center;gap:7px;flex-shrink:0;}
 .task-duration{font-size:13px;font-family:'DM Mono',monospace;color:var(--text-2);background:var(--bg);padding:3px 8px;border-radius:5px;}
 .acc-badge{font-size:13px;font-weight:600;padding:3px 9px;border-radius:5px;font-family:'DM Mono',monospace;display:inline-block;min-width:44px;text-align:center;}
@@ -202,7 +202,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 @media(max-width:600px){
   .action-bar{gap:6px;}.abar-btn{padding:7px 10px;font-size:11px;}.abar-divider{display:none;}
   .main{padding:12px 10px;}.stats-row{grid-template-columns:repeat(2,1fr);gap:8px;}.stat-value{font-size:30px;}
-  .task-main{padding:10px 12px;gap:8px;flex-wrap:wrap;align-items:center;}.task-name{font-size:14px;white-space:normal;overflow:visible;text-overflow:initial;width:100%;}
+  .task-main{padding:10px 12px;gap:8px;flex-wrap:wrap;align-items:center;}.task-name{font-size:15px;white-space:normal;overflow:visible;text-overflow:initial;width:100%;}
   .task-info{min-width:0;flex:1 1 auto;}
   .task-meta-row{flex-wrap:wrap;gap:5px;row-gap:6px;}
   .task-right{gap:6px;flex-wrap:wrap;justify-content:flex-start;}
@@ -451,15 +451,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div id="doneTimeSummary" style="text-align:center;margin-bottom:16px">
     <div style="font-size:42px;font-weight:700;font-family:'DM Mono',monospace;color:var(--accent)" id="doneTimeDisplay">—</div>
     <div style="font-size:13px;color:var(--text-3);margin-top:4px">total time</div>
+    <div id="doneGapHint" style="display:none;margin-top:8px"></div>
   </div>
   <div id="doneTimeEntry" style="display:none;margin-bottom:16px">
     <div style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;text-align:center">How long did it take?</div>
     <div style="display:flex;align-items:center;gap:8px;justify-content:center">
-      <input type="number" id="done-h" placeholder="0" min="0" max="9" style="width:64px;padding:10px;border:1px solid var(--border2);border-radius:8px;font-size:20px;font-family:'DM Mono',monospace;text-align:center;color:var(--text)">
+      <input type="number" id="done-h" placeholder="0" min="0" max="9" oninput="updateDoneGapHintFromManualEntry()" style="width:64px;padding:10px;border:1px solid var(--border2);border-radius:8px;font-size:20px;font-family:'DM Mono',monospace;text-align:center;color:var(--text)">
       <span style="font-size:14px;color:var(--text-3)">hr</span>
-      <input type="number" id="done-m" placeholder="30" min="0" max="59" style="width:64px;padding:10px;border:1px solid var(--border2);border-radius:8px;font-size:20px;font-family:'DM Mono',monospace;text-align:center;color:var(--text)">
+      <input type="number" id="done-m" placeholder="30" min="0" max="59" oninput="updateDoneGapHintFromManualEntry()" style="width:64px;padding:10px;border:1px solid var(--border2);border-radius:8px;font-size:20px;font-family:'DM Mono',monospace;text-align:center;color:var(--text)">
       <span style="font-size:14px;color:var(--text-3)">min</span>
     </div>
+    <div id="doneGapHintManual" style="display:none;margin-top:10px;text-align:center"></div>
   </div>
   <div class="modal-note" style="margin-bottom:16px">Marking details can be filled in later after reviewing Henry's work.</div>
   <div class="modal-actions">
@@ -777,8 +779,8 @@ function taskHTML(t){
   }
   right+=`<span class="chevron ${exp?'open':''}">▾</span>`;
   const overdueAgo = isOverdue ? daysAgoLabel(t.date) : null;
-  const overdueAgoStyle = overdueAgo ? `font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:${overdueAgo.cls==='urgent'?'var(--red-bg)':'var(--amber-bg)'};color:${overdueAgo.cls==='urgent'?'var(--red)':'var(--amber)'}` : '';
-  const meta = `${pill(t.subject)}<span class="task-date">${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${t.estSecs?`<span class="est-tag">est. ${durFmt(t.estSecs)}</span>`:''}`;
+  const overdueAgoStyle = overdueAgo ? `font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;background:${overdueAgo.cls==='urgent'?'var(--red-bg)':'var(--amber-bg)'};color:${overdueAgo.cls==='urgent'?'var(--red)':'var(--amber)'}` : '';
+  const meta = `${pill(t.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${t.estSecs?`<span class="est-tag"><span style="margin-right:2px">⏱️</span>${durFmt(t.estSecs)}</span>`:''}`;
   return `<div class="${cardCls}" id="card-${t.id}">
     <div class="task-main" onclick="expand('${t.id}',event)">
       <div class="task-check ${isDone?'checked':''}" onclick="tickTask('${t.id}',event)">${isDone?'✓':''}</div>
@@ -798,19 +800,18 @@ function classCardHTML(t){
   const dateOnly = new Date(t.date); dateOnly.setHours(0,0,0,0);
   const isOverdue = dateOnly < today;
   const overdueAgo = isOverdue ? daysAgoLabel(t.date) : null;
-  const overdueAgoStyle = overdueAgo ? `font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:${overdueAgo.cls==='urgent'?'var(--red-bg)':'var(--amber-bg)'};color:${overdueAgo.cls==='urgent'?'var(--red)':'var(--amber)'}` : '';
-  let priceStr = '';
-  if(t.packageTotal&&t.totalLessons){ const pkg=Number(t.packageTotal), lessons=Number(t.totalLessons); const perL=Math.round(pkg/lessons*10)/10; priceStr=`$${pkg.toFixed(1)} package · ${lessons} lessons ($${perL.toFixed(1)}/lesson)`; }
-  else if(t.packageTotal){ priceStr=`$${Number(t.packageTotal).toFixed(1)} package`; }
-  else if(t.pricePerLesson&&t.totalLessons){ const perL=Number(t.pricePerLesson), lessons=Number(t.totalLessons); const total=Math.round(perL*lessons*10)/10; priceStr=`$${perL.toFixed(1)}/lesson · ${lessons} lessons · total $${total.toFixed(1)}`; }
-  else if(t.pricePerLesson){ priceStr=`$${Number(t.pricePerLesson).toFixed(1)}/lesson`; }
+  const overdueAgoStyle = overdueAgo ? `font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;background:${overdueAgo.cls==='urgent'?'var(--red-bg)':'var(--amber-bg)'};color:${overdueAgo.cls==='urgent'?'var(--red)':'var(--amber)'}` : '';
+  let priceStr = '', priceShort = '';
+  if(t.packageTotal&&t.totalLessons){ const pkg=Number(t.packageTotal), lessons=Number(t.totalLessons); const perL=Math.round(pkg/lessons*10)/10; priceStr=`$${pkg.toFixed(1)} package · ${lessons} lessons ($${perL.toFixed(1)}/lesson)`; priceShort=`$${perL.toFixed(1)}/lesson`; }
+  else if(t.packageTotal){ priceStr=`$${Number(t.packageTotal).toFixed(1)} package`; priceShort=priceStr; }
+  else if(t.pricePerLesson&&t.totalLessons){ const perL=Number(t.pricePerLesson), lessons=Number(t.totalLessons); const total=Math.round(perL*lessons*10)/10; priceStr=`$${perL.toFixed(1)}/lesson · ${lessons} lessons · total $${total.toFixed(1)}`; priceShort=`$${perL.toFixed(1)}/lesson`; }
+  else if(t.pricePerLesson){ priceStr=`$${Number(t.pricePerLesson).toFixed(1)}/lesson`; priceShort=priceStr; }
   return `<div class="task-card class-card ${isDone?'done':''}${exp?' active':''}" id="card-${t.id}">
     <div class="task-main" onclick="expand('${t.id}',event)">
       <div class="task-check ${isDone?'checked':''}${isSkipped||isRescheduled?' disabled':''}" onclick="${isSkipped||isRescheduled?'':`tickClass('${t.id}',event)`}" style="${isSkipped||isRescheduled?'opacity:0.4;cursor:not-allowed':''}">${isDone?'✓':isSkipped?'⏭':isRescheduled?'↻':''}</div>
       <div class="task-info">
-        <div class="task-name">🏫 ${t.name}</div>
-        <div class="task-meta-row">${pill(t.subject)}<span class="task-date">${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${timeStr?`<span class="class-time-tag">${timeStr}</span>`:''}${t.location?`<span class="class-loc-tag">📍${t.location}</span>`:''}${isSkipped?'<span class="review-tag" style="background:var(--amber-bg);color:var(--amber)">⏭ Skipped</span>':''}${isRescheduled?'<span class="review-tag" style="background:var(--accent-bg);color:var(--accent)">↻ Rescheduled</span>':''}</div>
-        ${priceStr?`<div style="font-size:12px;color:var(--accent);margin-top:3px;font-weight:500">💰 ${priceStr}</div>`:''}
+        <div class="task-name">🏫 ${t.name}${timeStr?` <span style="font-size:13px;font-weight:600;color:var(--orange);font-family:'DM Mono',monospace">· ${timeStr}</span>`:''}</div>
+        <div class="task-meta-row">${pill(t.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${priceShort?`<span class="est-tag"><span style="margin-right:2px">💰</span>${priceShort}</span>`:''}${t.location?`<span class="class-loc-tag">📍${t.location}</span>`:''}${isSkipped?'<span class="review-tag" style="background:var(--amber-bg);color:var(--amber)">⏭ Skipped</span>':''}${isRescheduled?'<span class="review-tag" style="background:var(--accent-bg);color:var(--accent)">↻ Rescheduled</span>':''}</div>
       </div>
       <div class="task-right">${t.basePoints?`<span class="pts-tag">+${t.basePoints}pts</span>`:''}<span class="chevron ${exp?'open':''}">▾</span></div>
     </div>
@@ -943,17 +944,17 @@ function reviewCardHTML(r){
   const reviewed=r.reviewedCount||0;
   const progPct=totalWrong>0?Math.round((reviewed/totalWrong)*100):0;
   const progColor=progPct===100?'var(--green)':progPct>=50?'var(--amber)':'var(--red)';
-  const agoStyle=`font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:${ago.cls==='urgent'?'var(--red-bg)':ago.cls==='warn'?'var(--amber-bg)':'var(--green-bg)'};color:${ago.cls==='urgent'?'var(--red)':ago.cls==='warn'?'var(--amber)':'var(--green)'}`;
+  const agoStyle=`font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;background:${ago.cls==='urgent'?'var(--red-bg)':ago.cls==='warn'?'var(--amber-bg)':'var(--green-bg)'};color:${ago.cls==='urgent'?'var(--red)':ago.cls==='warn'?'var(--amber)':'var(--green)'}`;
   return `<div class="task-card${exp?' active':''}" id="rcard-${r.feishuId}">
     <div class="task-main" onclick="expandReview('${r.feishuId}',event)">
       <div class="task-check ${r.done?'checked':''}" onclick="tickReview('${r.feishuId}',event)">${r.done?'✓':''}</div>
       <div class="task-info">
         <div class="task-name" style="${r.done?'text-decoration:line-through;color:var(--text-3)':''}">${r.name}</div>
-        <div class="task-meta-row" style="margin-bottom:${totalWrong>0?'5px':'0'}">${pill(r.subject)}<span class="task-date">${fmt(r.date)}</span><span style="${agoStyle}">${ago.text}</span></div>
+        <div class="task-meta-row" style="margin-bottom:${totalWrong>0?'5px':'0'}">${pill(r.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(r.date)}</span><span style="${agoStyle}">${ago.text}</span></div>
         ${totalWrong>0?`<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;max-width:160px"><div style="width:${progPct}%;height:100%;background:${progColor};border-radius:3px"></div></div><span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-3)">${reviewed}/${totalWrong} reviewed</span></div>`:''}
       </div>
       <div class="task-right">
-        ${(r.totalSecs||(getReviewTS(r.feishuId).elapsed>0?getReviewTS(r.feishuId).elapsed:0))?`<span class="task-duration" style="background:var(--amber-bg);color:var(--amber)">📌 ${durFmt(r.totalSecs||getReviewTS(r.feishuId).elapsed)}</span>`:''}
+        ${(r.totalSecs||(getReviewTS(r.feishuId).elapsed>0?getReviewTS(r.feishuId).elapsed:0))?`<span class="task-duration">${durFmt(r.totalSecs||getReviewTS(r.feishuId).elapsed)}</span>`:''}
         ${r.done?'<span class="review-tag rt-done">✓ Done</span>':(()=>{ const rst=getReviewTS(r.feishuId).state; if(rst==='running') return '<span class="review-tag" style="background:var(--accent-bg);color:var(--accent)">● Recording</span>'; if(rst==='paused') return '<span class="review-tag rt-needed">⏸ Paused</span>'; if(rst==='stopped') return '<span class="review-tag" style="background:var(--red-bg);color:var(--red)">⏹ Stopped</span>'; return `<button class="action-btn primary" onclick="expandReviewAndStart('${r.feishuId}',event)">▶ Start</button>`; })()}
         ${accBadgeHTML(pct)}
         ${r.done&&r.points?`<span class="pts-tag">+${r.points}pts</span>`:''}
@@ -1084,17 +1085,17 @@ function reviewPageCardHTML(r){
   const reviewed=r.reviewedCount||0;
   const progPct=totalWrong>0?Math.round((reviewed/totalWrong)*100):0;
   const progColor=progPct===100?'var(--green)':progPct>=50?'var(--amber)':'var(--red)';
-  const agoStyle=`font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;background:${ago.cls==='urgent'?'var(--red-bg)':ago.cls==='warn'?'var(--amber-bg)':'var(--green-bg)'};color:${ago.cls==='urgent'?'var(--red)':ago.cls==='warn'?'var(--amber)':'var(--green)'}`;
+  const agoStyle=`font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;background:${ago.cls==='urgent'?'var(--red-bg)':ago.cls==='warn'?'var(--amber-bg)':'var(--green-bg)'};color:${ago.cls==='urgent'?'var(--red)':ago.cls==='warn'?'var(--amber)':'var(--green)'}`;
   return `<div class="task-card${exp?' active':''}${r.done?' done':''}" id="rhist-${r.feishuId}" style="${r.done?'border-left:3px solid var(--green)':''}">
     <div class="task-main" onclick="expandReviewHist('${r.feishuId}',event)">
       <div class="task-check ${r.done?'checked':''}" onclick="tickReview('${r.feishuId}',event)">${r.done?'✓':''}</div>
       <div class="task-info">
         <div class="task-name" style="${r.done?'text-decoration:line-through;color:var(--text-3)':''}">${r.name}</div>
-        <div class="task-meta-row" style="margin-bottom:${totalWrong>0?'5px':'0'}">${pill(r.subject)}<span class="task-date">${fmt(r.date)}</span><span style="${agoStyle}">${ago.text}</span>${r.done&&r.totalSecs?`<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-3)">⏱ ${durFmt(r.totalSecs)}</span>`:''}</div>
+        <div class="task-meta-row" style="margin-bottom:${totalWrong>0?'5px':'0'}">${pill(r.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(r.date)}</span><span style="${agoStyle}">${ago.text}</span>${r.done&&r.totalSecs?`<span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-3)">⏱ ${durFmt(r.totalSecs)}</span>`:''}</div>
         ${totalWrong>0?`<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;max-width:160px"><div style="width:${progPct}%;height:100%;background:${progColor};border-radius:3px"></div></div><span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-3)">${reviewed}/${totalWrong} reviewed</span></div>`:''}
       </div>
       <div class="task-right">
-        ${(r.totalSecs||(getReviewTS(r.feishuId).elapsed>0?getReviewTS(r.feishuId).elapsed:0))?`<span class="task-duration" style="background:var(--amber-bg);color:var(--amber)">📌 ${durFmt(r.totalSecs||getReviewTS(r.feishuId).elapsed)}</span>`:''}
+        ${(r.totalSecs||(getReviewTS(r.feishuId).elapsed>0?getReviewTS(r.feishuId).elapsed:0))?`<span class="task-duration">${durFmt(r.totalSecs||getReviewTS(r.feishuId).elapsed)}</span>`:''}
         ${r.done?'<span class="review-tag rt-done">✓ Done</span>':(()=>{ const rst=getReviewTS(r.feishuId).state; if(rst==='running') return '<span class="review-tag" style="background:var(--accent-bg);color:var(--accent)">● Recording</span>'; if(rst==='paused') return '<span class="review-tag rt-needed">⏸ Paused</span>'; if(rst==='stopped') return '<span class="review-tag" style="background:var(--red-bg);color:var(--red)">⏹ Stopped</span>'; return `<button class="action-btn primary" onclick="expandReviewHistAndStart('${r.feishuId}',event)">▶ Start</button>`; })()}
         ${accBadgeHTML(pct)}
         ${r.done&&r.points?`<span class="pts-tag">+${r.points}pts</span>`:''}
@@ -1369,6 +1370,7 @@ function tStart(id){
 function tPause(id){
   const t=ts(id); if(t.state!=='running') return;
   clearInterval(t.interval); t.state='paused';
+  t.pausedAt=Date.now();  // 记录暂停发生的时刻,用于Continue时计算这次休息了多久
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   t.sessions.push({a:'Pause',t:'Today '+now});
 
@@ -1389,11 +1391,20 @@ function tContinue(id){
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   t.sessions.push({a:'Continue',t:'Today '+now});
 
-  // ── 飞书：Status → In Processing；计时记录表写一行 Continue ──
+  // ── Pause→Continue完整周期: 计入暂停次数+1, 累加这次休息时长 ──
   const task=TASKS.find(tk=>tk.id===id);
+  if(task && t.pausedAt){
+    const restThisTime = Math.round((Date.now()-t.pausedAt)/1000);
+    task.pauseCount = (task.pauseCount||0) + 1;
+    task.restSecs = (task.restSecs||0) + restThisTime;
+    t.pausedAt = null;
+  }
+
+  // ── 飞书：Status → In Progress；计时记录表写一行 Continue ──
   if(task){
-    feishuUpdateStatus(task,'In Processing');
+    feishuUpdateStatus(task,'In Progress');
     feishuLogAction(task,'Continue');
+    feishuUpdatePauseStats(task);
   }
 
   t.interval=setInterval(()=>{ t.elapsed=Math.floor((Date.now()-t.sessionStart)/1000); tickUI(id,t); },500);
@@ -1467,6 +1478,33 @@ function quickMark(id,e){
 }
 
 // ── DONE MODAL ──
+function updateDoneGapHintFromManualEntry(){
+  const task=TASKS.find(t=>t.id===pendingDoneId);
+  const hintEl=document.getElementById('doneGapHintManual');
+  if(!hintEl) return;
+  const h=parseInt(document.getElementById('done-h')?.value)||0;
+  const m=parseInt(document.getElementById('done-m')?.value)||0;
+  const elapsedSecs=(h*60+m)*60;
+  if(!task || !task.estSecs || !elapsedSecs){ hintEl.style.display='none'; return; }
+  const gapSecs = task.estSecs - elapsedSecs;
+  const gapMin = Math.round(gapSecs/60);
+  if(gapMin===0){ hintEl.style.display='none'; return; }
+  const isEarly = gapSecs > 0;
+  hintEl.style.display='block';
+  hintEl.innerHTML = `<span style="font-size:12px;font-weight:600;padding:3px 9px;border-radius:5px;background:${isEarly?'var(--green-bg)':'var(--amber-bg)'};color:${isEarly?'var(--green)':'var(--amber)'}">${isEarly?'⚡ '+Math.abs(gapMin)+'m faster than estimated':'🐢 '+Math.abs(gapMin)+'m slower than estimated'}</span>`;
+}
+function updateDoneGapHint(id, elapsedSecs){
+  const task=TASKS.find(t=>t.id===id);
+  const hintEl=document.getElementById('doneGapHint');
+  if(!hintEl) return;
+  if(!task || !task.estSecs || !elapsedSecs){ hintEl.style.display='none'; return; }
+  const gapSecs = task.estSecs - elapsedSecs;
+  const gapMin = Math.round(gapSecs/60);
+  if(gapMin===0){ hintEl.style.display='none'; return; }
+  const isEarly = gapSecs > 0;
+  hintEl.style.display='block';
+  hintEl.innerHTML = `<span style="font-size:12px;font-weight:600;padding:3px 9px;border-radius:5px;background:${isEarly?'var(--green-bg)':'var(--amber-bg)'};color:${isEarly?'var(--green)':'var(--amber)'}">${isEarly?'⚡ '+Math.abs(gapMin)+'m faster than estimated':'🐢 '+Math.abs(gapMin)+'m slower than estimated'}</span>`;
+}
 function openDoneModal(id){
   pendingDoneId=id;
   const t=ts(id);
@@ -1476,6 +1514,7 @@ function openDoneModal(id){
     if(td) td.textContent=durFmt(t.elapsed)||'—';
     te.style.display='none';
     document.getElementById('doneTimeSummary').style.display='block';
+    updateDoneGapHint(id, t.elapsed);
   } else {
     if(td) td.textContent='—';
     document.getElementById('doneTimeSummary').style.display='none';
@@ -1492,6 +1531,7 @@ function quickDone(id){
   const td=document.getElementById('doneTimeDisplay'); if(td) td.textContent=durFmt(ts(id).elapsed)||'—';
   document.getElementById('doneTimeSummary').style.display='block';
   document.getElementById('doneTimeEntry').style.display='none';
+  updateDoneGapHint(id, ts(id).elapsed);
   openModal('doneModal');
 }
 
@@ -1511,9 +1551,10 @@ function confirmDone(){
   task.status='done'; task.totalSecs=tst.elapsed; task.sessions=[...tst.sessions];
   task.marking={totalQ:null,wrongQ:null,needReview:null,saved:false};
   task.completedAt=Date.now();
+  task.gapSecs = task.estSecs ? (task.estSecs - tst.elapsed) : null;
   expandedId=pendingDoneId;
 
-  // ── 飞书：Status → Finish + 最终专注时间；计时记录表写一行 Finish ──
+  // ── 飞书：Status → Finish + 最终专注时间 + Gap(预估-实际,正数=提前完成)；计时记录表写一行 Finish ──
   feishuUpdateStatus(task,'Done',tst.elapsed).then(()=>showSyncToast('✓ Saved to Feishu'));
   feishuLogAction(task,'Done');
 
@@ -1585,7 +1626,7 @@ function undoTask(id){
   const task=TASKS.find(t=>t.id===id); if(!task) return;
   const dateOnly = new Date(task.date); dateOnly.setHours(0,0,0,0);
   task.status = dateOnly < today ? 'overdue' : 'pending';
-  task.totalSecs=0; task.sessions=[]; task.marking=null; task.completedAt=null;
+  task.totalSecs=0; task.sessions=[]; task.marking=null; task.completedAt=null; task.gapSecs=null; task.pauseCount=0; task.restSecs=0;
   TS[id]=null; expandedId=null;
   feishuUpdateStatus(task, 'Not Started', 0).then(()=>showSyncToast('✓ Reverted to pending'));
   renderContent();
@@ -2102,8 +2143,27 @@ async function feishuUpdateStatus(task, statusLabel, elapsedSecs){
   const fields = { [F_TASK.status]: statusLabel };
   if(elapsedSecs != null) fields[F_TASK.focusTime] = elapsedSecs;
   fields['Completed At'] = statusLabel === 'Done' ? Date.now() : null;
+  if(statusLabel === 'Done'){
+    fields['Gap'] = (task.estSecs && elapsedSecs!=null) ? Math.round((task.estSecs - elapsedSecs)/60) : null;  // 分钟,正数=提前完成,负数=超时
+  } else if(statusLabel === 'Not Started'){
+    fields['Gap'] = null;  // 撤销完成时清空Gap
+    fields['Pause Count'] = 0;
+    fields['Rest Time'] = 0;
+  }
   const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', fields);
   console.log('feishuUpdateStatus result:', JSON.stringify(res));
+  return res;
+}
+
+// ── Pause Count / Rest Time 同步: 只在完整Pause→Continue周期结束(即Continue那一刻)调用 ──
+async function feishuUpdatePauseStats(task){
+  if(!task.feishuId) return;
+  const fields = {
+    'Pause Count': task.pauseCount || 0,
+    'Rest Time': task.restSecs || 0,  // 秒,跟Focus Time单位一致
+  };
+  const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', fields);
+  console.log('feishuUpdatePauseStats:', JSON.stringify(res));
   return res;
 }
 
@@ -2218,6 +2278,7 @@ async function feishuCreateClass(task){
   if(task.packageTotal)  fields['Package Total']  = task.packageTotal;
   if(task.totalLessons)  fields['Total Lessons']  = task.totalLessons;
   if(task.classNotes)    fields['Notes']           = task.classNotes;
+  if(task.location)      fields['Location']        = task.location;
   if(task.basePoints)    fields['Reward Points']   = task.basePoints;
 
   const res = await apiCall('/classes', 'POST', fields);
@@ -2242,6 +2303,15 @@ async function feishuCreateRecurring(rule){
   };
   if(rule.estSecs)    fields['Estimate'] = Math.round(rule.estSecs/60);
   if(rule.basePoints) fields['Reward Points'] = rule.basePoints;
+  if(rule.type==='class'){
+    if(rule.startTime)     fields['Start Time'] = rule.startTime;
+    if(rule.endTime)       fields['End Time'] = rule.endTime;
+    if(rule.location)      fields['Location'] = rule.location;
+    if(rule.pricePerLesson) fields['Price Per Lesson'] = Number(rule.pricePerLesson);
+    if(rule.packageTotal)  fields['Package Total'] = Number(rule.packageTotal);
+    if(rule.totalLessons)  fields['Total Lessons'] = Number(rule.totalLessons);
+    if(rule.classNotes)    fields['Class Notes'] = rule.classNotes;
+  }
   // remove nulls
   Object.keys(fields).forEach(k => fields[k]==null && delete fields[k]);
   const res = await apiCall('/recurring', 'POST', fields);
@@ -2273,6 +2343,15 @@ async function feishuUpdateRecurringFull(rule){
   };
   if(rule.estSecs)    fields['Estimate'] = Math.round(rule.estSecs/60);
   if(rule.basePoints) fields['Reward Points'] = rule.basePoints;
+  if(rule.type==='class'){
+    fields['Start Time'] = rule.startTime || null;
+    fields['End Time'] = rule.endTime || null;
+    fields['Location'] = rule.location || null;
+    fields['Price Per Lesson'] = rule.pricePerLesson ? Number(rule.pricePerLesson) : null;
+    fields['Package Total'] = rule.packageTotal ? Number(rule.packageTotal) : null;
+    fields['Total Lessons'] = rule.totalLessons ? Number(rule.totalLessons) : null;
+    fields['Class Notes'] = rule.classNotes || null;
+  }
   Object.keys(fields).forEach(k => fields[k]==null && delete fields[k]);
   return apiCall(`/recurring/${rule.feishuId}`, 'PATCH', fields);
 }
@@ -2400,6 +2479,9 @@ function feishuRecordToTask(rec){
     isStandaloneReview: !!f['Is Standalone Review'],
     deleted: !!f['Deleted'],
     completedAt: f['Completed At'] || null,
+    gapSecs: (f['Gap']!=null) ? f['Gap']*60 : null,
+    pauseCount: Number(f['Pause Count']) || 0,
+    restSecs: Number(f['Rest Time']) || 0,
   };
 }
 
@@ -2440,14 +2522,14 @@ function feishuRecordToClass(rec){
     id: 'F'+rec.record_id,
     feishuId: rec.record_id,
     type: 'class',
-    name: f['Subject'] || 'Class',
+    name: f['Task Details'] || f['Subject'] || 'Class',
     subject: f['Subject'] || 'Other',
     date: dateVal,
     status: statusMap[f['Status']] || 'pending',
     classStatus: classStatusMap[f['Status']] || null,
     startTime: toTime(f['Start Time']),
     endTime: toTime(f['End Time']),
-    location: '',
+    location: f['Location'] || '',
     basePoints: Number(f['Reward Points']) || 0,
     totalSecs: f['Focus Time'] ? Number(f['Focus Time'])*60 : 0,  // Class表存的是分钟(上课时长)，这里转回秒方便页面显示
     estSecs: null,
@@ -2468,10 +2550,11 @@ function feishuRecordToClass(rec){
 function feishuRecordToRecurring(rec){
   const f = rec.fields || {};
   const toISO = ts => ts ? fmtISO(new Date(ts)) : '';
-  return {
+  const type = (f['Type']||'Task').toLowerCase();
+  const result = {
     id: 'FR'+rec.record_id,
     feishuId: rec.record_id,
-    type: (f['Type']||'Task').toLowerCase(),
+    type: type,
     name: f['Task Details'] || '',
     subject: f['Subject'] || 'Other',
     freq: (f['Frequency']||'daily').toLowerCase(),
@@ -2481,7 +2564,19 @@ function feishuRecordToRecurring(rec){
     active: f['Status'] === 'Active',
     statusHistory: f['Status History'] || '',
     skipDates: [],
+    estSecs: f['Estimate'] ? Number(f['Estimate'])*60 : null,
+    basePoints: Number(f['Reward Points']) || 0,
   };
+  if(type==='class'){
+    result.startTime = f['Start Time'] || null;
+    result.endTime = f['End Time'] || null;
+    result.location = f['Location'] || '';
+    result.pricePerLesson = Number(f['Price Per Lesson']) || 0;
+    result.packageTotal = Number(f['Package Total']) || 0;
+    result.totalLessons = Number(f['Total Lessons']) || 0;
+    result.classNotes = f['Class Notes'] || '';
+  }
+  return result;
 }
 
 // 主加载函数：拉取所有历史数据，替换演示数据
