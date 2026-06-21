@@ -681,6 +681,156 @@ function getCurrentStreak(){
   return streak;
 }
 
+// ════════════════════════════════════════════
+// ── Stats趋势图数据聚合 ──
+// ════════════════════════════════════════════
+
+// 某一天的原始统计数据(完成率/正确率/时长都从这里派生)。
+// 完成率口径：当天真实存在的task+class中，done的占比 —— 不算Review，跟isDayCompleted的"全有全无"判断不同，这里是连续的百分比。
+// 正确率口径：当天有批改数据(marking.saved && totalQ)的task，准确率取平均。
+// 时长口径：当天所有done记录的totalSecs求和(跟openStats里All Time Total Time用的是同一套求和方式，保证口径一致)。
+function getDailyStats(dateStr){
+  const items = TASKS.filter(t=>fmtISO(t.date)===dateStr && !isHidden(t));
+  const completedCount = items.filter(t=>t.status==='done').length;
+  const totalCount = items.length;
+  const withMarking = items.filter(t=>t.marking&&t.marking.saved&&t.marking.totalQ);
+  const accSum = withMarking.reduce((a,t)=>a+accPct(t.marking.totalQ,t.marking.wrongQ),0);
+  const totalSecs = items.filter(t=>t.status==='done').reduce((a,t)=>a+(t.totalSecs||0),0);
+  return { completedCount, totalCount, accSum, accCount: withMarking.length, totalSecs };
+}
+
+// 把一组连续日期(YYYY-MM-DD数组)汇总成一个趋势图数据点：{label, completionPct, accuracyPct, totalSecs}
+// completionPct/accuracyPct为null表示这个周期完全没有数据(避免在图上画出一个误导性的0%)
+function aggregateDateRange(dateStrs, label){
+  let completedCount=0, totalCount=0, accSum=0, accCount=0, totalSecs=0;
+  dateStrs.forEach(dStr=>{
+    const s = getDailyStats(dStr);
+    completedCount+=s.completedCount; totalCount+=s.totalCount;
+    accSum+=s.accSum; accCount+=s.accCount; totalSecs+=s.totalSecs;
+  });
+  return {
+    label,
+    completionPct: totalCount>0 ? Math.round((completedCount/totalCount)*100) : null,
+    accuracyPct: accCount>0 ? Math.round(accSum/accCount) : null,
+    totalSecs,
+  };
+}
+
+// 最近numDays天的趋势，每天单独一个数据点(不聚合)，最旧的在前，最新的在后
+function getDailyTrend(numDays){
+  const points = [];
+  for(let i=numDays-1; i>=0; i--){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const dStr = fmtISO(d);
+    const label = d.toLocaleDateString('en-AU',{weekday:'short'});
+    points.push(aggregateDateRange([dStr], label));
+  }
+  return points;
+}
+
+// 最近numWeeks周的趋势(周一~周日为一周，最旧的在前，最新的在后，方便图表从左到右画)
+function getWeeklyTrend(numWeeks){
+  const points = [];
+  const thisMonday = getMonday(today);
+  for(let w=numWeeks-1; w>=0; w--){
+    const weekStart = new Date(thisMonday); weekStart.setDate(weekStart.getDate()-w*7);
+    const dateStrs = [];
+    for(let i=0;i<7;i++){ const d=new Date(weekStart); d.setDate(d.getDate()+i); dateStrs.push(fmtISO(d)); }
+    const label = weekStart.toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+    points.push(aggregateDateRange(dateStrs, label));
+  }
+  return points;
+}
+
+// 最近numMonths个月的趋势(最旧的在前，最新的在后)
+function getMonthlyTrend(numMonths){
+  const points = [];
+  for(let m=numMonths-1; m>=0; m--){
+    const monthDate = new Date(today.getFullYear(), today.getMonth()-m, 1);
+    const year=monthDate.getFullYear(), month=monthDate.getMonth();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const dateStrs = [];
+    for(let day=1; day<=daysInMonth; day++){
+      const d = new Date(year, month, day);
+      if(d > today) break; // 当前月不统计还没到的未来日期
+      dateStrs.push(fmtISO(d));
+    }
+    const label = monthDate.toLocaleDateString('en-AU',{month:'short'});
+    points.push(aggregateDateRange(dateStrs, label));
+  }
+  return points;
+}
+
+// ── 折线图：完成率 + 正确率(两条线，共用0-100%的Y轴) ──
+// points是aggregateDateRange返回的数组，每个点{label, completionPct, accuracyPct}
+function lineChartSVG(points){
+  const W=680, H=200, padL=36, padR=14, padT=14, padB=28;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const n=points.length;
+  const xAt = i => padL + (n<=1?plotW/2:(plotW*i)/(n-1));
+  const yAt = pct => padT + plotH - (pct/100)*plotH;
+
+  const buildLine = (key,color) => {
+    // null值的点跳过连线(数据缺失的周期不应该被一条线"假装连接"到下一个有数据的点)
+    let path=''; let started=false;
+    points.forEach((p,i)=>{
+      if(p[key]==null){ started=false; return; }
+      const x=xAt(i), y=yAt(p[key]);
+      path += (started?' L ':'M ')+x.toFixed(1)+' '+y.toFixed(1);
+      started=true;
+    });
+    const dots = points.map((p,i)=> p[key]==null?'':`<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(p[key]).toFixed(1)}" r="3.5" style="fill:${color}"/>`).join('');
+    return `<path d="${path}" fill="none" style="stroke:${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
+  };
+
+  // Y轴网格线(0/50/100%)
+  const gridLines = [0,50,100].map(pct=>{
+    const y=yAt(pct);
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/><text x="${padL-6}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-3)" font-family="DM Mono,monospace">${pct}</text>`;
+  }).join('');
+  // X轴标签(只显示部分,避免点数多时label挤在一起重叠)
+  const labelStep = n>8 ? Math.ceil(n/8) : 1;
+  const xLabels = points.map((p,i)=> i%labelStep!==0 ? '' : `<text x="${xAt(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="var(--text-3)">${p.label}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px" xmlns="http://www.w3.org/2000/svg">
+    ${gridLines}
+    ${buildLine('completionPct','var(--accent)')}
+    ${buildLine('accuracyPct','var(--purple)')}
+    ${xLabels}
+  </svg>`;
+}
+
+// ── 柱状图：学习时长 ──
+function barChartSVG(points){
+  const W=680, H=200, padL=40, padR=14, padT=14, padB=28;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const n=points.length;
+  const maxSecs = Math.max(...points.map(p=>p.totalSecs), 1);
+  const slotW = plotW/n;
+  const barW = Math.min(slotW*0.55, 34);
+
+  const bars = points.map((p,i)=>{
+    const cx = padL + slotW*i + slotW/2;
+    const barH = (p.totalSecs/maxSecs)*plotH;
+    const y = padT + plotH - barH;
+    return `<rect x="${(cx-barW/2).toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(barH,0).toFixed(1)}" rx="3" style="fill:var(--green)" opacity="${p.totalSecs>0?0.85:0.15}"/>`;
+  }).join('');
+
+  const maxHrs = (maxSecs/3600);
+  const gridLines = [0,0.5,1].map(frac=>{
+    const y=padT+plotH-(frac*plotH);
+    const hrLabel = (maxHrs*frac).toFixed(maxHrs<2?1:0);
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W-padR}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/><text x="${padL-6}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--text-3)" font-family="DM Mono,monospace">${hrLabel}h</text>`;
+  }).join('');
+  const labelStep = n>8 ? Math.ceil(n/8) : 1;
+  const xLabels = points.map((p,i)=> i%labelStep!==0 ? '' : `<text x="${(padL+slotW*i+slotW/2).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="var(--text-3)">${p.label}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px" xmlns="http://www.w3.org/2000/svg">
+    ${gridLines}
+    ${bars}
+    ${xLabels}
+  </svg>`;
+}
 
 // ── TIMER STATE ──
 const TS={}, RVS={};
@@ -725,6 +875,7 @@ var acType = [];
 let acRecur = 'none';
 let markingReview = {};
 let expandedRecurId = null;
+let recurEditSubjects = []; // 当前展开编辑的那条Recurring规则正在选中的学科(数组)。expandedRecurId同一时刻只有一条，不需要按id分键
 
 document.getElementById('at-date').value = fmtISO(today);
 document.getElementById('ac-date').value  = fmtISO(today);
@@ -2344,6 +2495,8 @@ function renderRecurringList(){
       ${isExp?`<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;display:flex;flex-direction:column;gap:12px">
         <div>
           <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Edit Rule</div>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px"><span style="font-size:10px;color:var(--text-3)">${r.type==='class'?'Class Name':'Task Details'}</span><input type="text" id="ri-name-${r.id}" value="${r.name||''}" placeholder="${r.type==='class'?'e.g. Piano Lesson':'e.g. Worksheet Ch.5'}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;width:100%;max-width:360px"></div>
+          <div style="margin-bottom:8px"><span style="font-size:10px;color:var(--text-3);display:block;margin-bottom:4px">Subject</span><div class="picker" id="ri-subject-picker-${r.id}"><span style="font-size:12px;color:var(--text-3)">Loading…</span></div></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
             <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Frequency</span>
               <select id="ri-freq-${r.id}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif">
@@ -2356,11 +2509,22 @@ function renderRecurringList(){
             <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Estimate (min)</span><input type="number" id="ri-est-${r.id}" value="${r.estSecs?Math.round(r.estSecs/60):''}" placeholder="e.g. 15" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;width:90px"></div>
             <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Points</span><input type="number" id="ri-points-${r.id}" value="${r.basePoints||''}" placeholder="e.g. 5" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;width:80px"></div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:${r.type==='class'?'12':'0'}px">
             <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Start</span><input type="date" value="${r.startDate}" id="ri-start-${r.id}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace"></div>
             <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">End (optional)</span><input type="date" value="${r.endDate||''}" id="ri-end-${r.id}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace"></div>
-            <button class="ri-btn" style="align-self:flex-end;background:var(--accent);color:white;border-color:var(--accent)" onclick="saveRecurFull('${r.id}')">💾 Save All Changes</button>
           </div>
+          ${r.type==='class'?`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+            <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Start Time</span><input type="time" value="${r.startTime||''}" id="ri-starttime-${r.id}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">End Time</span><input type="time" value="${r.endTime||''}" id="ri-endtime-${r.id}" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Location</span><input type="text" value="${r.location||''}" id="ri-location-${r.id}" placeholder="e.g. Chatswood" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;width:140px"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+            <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Per lesson ($)</span><input type="number" value="${r.pricePerLesson||''}" id="ri-priceper-${r.id}" placeholder="e.g. 80" min="0" step="0.1" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;width:100px"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Package total ($)</span><input type="number" value="${r.packageTotal||''}" id="ri-pricetotal-${r.id}" placeholder="e.g. 800" min="0" step="0.1" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;width:100px"></div>
+            <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;color:var(--text-3)">Lessons in package</span><input type="number" value="${r.totalLessons||''}" id="ri-lessons-${r.id}" placeholder="e.g. 10" min="0" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;width:100px"></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px"><span style="font-size:10px;color:var(--text-3)">Notes (teacher, payment, etc.)</span><textarea id="ri-notes-${r.id}" placeholder="e.g. Teacher: Ms Li, paid until July" style="padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:13px;font-family:'DM Sans',sans-serif;width:100%;max-width:400px;height:50px">${r.classNotes||''}</textarea></div>`:''}
+          <button class="ri-btn" style="background:var(--accent);color:white;border-color:var(--accent)" onclick="saveRecurFull('${r.id}')">💾 Save All Changes</button>
         </div>
         <div>
           <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px">Add Skip Period</div>
@@ -2375,7 +2539,32 @@ function renderRecurringList(){
     </div>`;
   }).join('');
 }
-function toggleRecurExp(id){ expandedRecurId=expandedRecurId===id?null:id; renderRecurringList(); }
+function toggleRecurExp(id){
+  expandedRecurId=expandedRecurId===id?null:id;
+  renderRecurringList();
+  if(expandedRecurId){
+    const r=RECURRING.find(r=>r.id===expandedRecurId);
+    if(r){
+      recurEditSubjects = (r.subjects&&r.subjects.length) ? [...r.subjects] : (r.subject?r.subject.split('/').filter(Boolean):[]);
+      const tableName = r.type==='class' ? 'classes' : 'tasks';
+      renderRecurEditSubjectPicker(id, tableName);
+    }
+  }
+}
+// Recurring编辑表单的学科多选按钮：跟Add Task/Add Class同样从飞书动态读取选项，保持体验一致
+async function renderRecurEditSubjectPicker(ruleId, tableName){
+  const picker = document.getElementById('ri-subject-picker-'+ruleId);
+  if(!picker) return;
+  const options = await loadSubjectOptions(tableName);
+  picker.innerHTML = options.map(s=>{
+    const isSel = recurEditSubjects.includes(s);
+    return `<div class="pick-btn${isSel?' sel':''}" onclick="toggleRecurEditSubject('${s}',this)">${s}</div>`;
+  }).join('');
+}
+function toggleRecurEditSubject(s, btn){
+  if(recurEditSubjects.includes(s)){ recurEditSubjects=recurEditSubjects.filter(x=>x!==s); btn.classList.remove('sel'); }
+  else { recurEditSubjects=[...recurEditSubjects, s]; btn.classList.add('sel'); }
+}
 function toggleRecurring(id){
   const r=RECURRING.find(r=>r.id===id); if(!r) return;
   r.active=!r.active;
@@ -2395,6 +2584,7 @@ function saveRecurDates(id){ const r=RECURRING.find(r=>r.id===id); if(!r) return
 // 完整保存：Frequency, Days, Estimate, Points, Start/End Date，同步到飞书Recurring表
 function saveRecurFull(id){
   const r=RECURRING.find(r=>r.id===id); if(!r) return;
+  const nameEl=document.getElementById('ri-name-'+id);
   const freqEl=document.getElementById('ri-freq-'+id);
   const daysEl=document.getElementById('ri-days-'+id);
   const estEl=document.getElementById('ri-est-'+id);
@@ -2402,12 +2592,31 @@ function saveRecurFull(id){
   const startEl=document.getElementById('ri-start-'+id);
   const endEl=document.getElementById('ri-end-'+id);
 
+  if(nameEl && nameEl.value.trim()) r.name = nameEl.value.trim();
+  if(recurEditSubjects.length){ r.subjects = [...recurEditSubjects]; r.subject = recurEditSubjects.join('/'); }
   r.freq = freqEl.value;
   r.days = daysEl.value.split(',').map(s=>s.trim()).filter(Boolean);
   r.estSecs = estEl.value ? parseInt(estEl.value)*60 : null;
   r.basePoints = ptsEl.value ? parseInt(ptsEl.value) : 0;
   r.startDate = startEl.value || r.startDate;
   r.endDate = endEl.value || '';
+
+  if(r.type==='class'){
+    const startTimeEl=document.getElementById('ri-starttime-'+id);
+    const endTimeEl=document.getElementById('ri-endtime-'+id);
+    const locationEl=document.getElementById('ri-location-'+id);
+    const pricePerEl=document.getElementById('ri-priceper-'+id);
+    const priceTotalEl=document.getElementById('ri-pricetotal-'+id);
+    const lessonsEl=document.getElementById('ri-lessons-'+id);
+    const notesEl=document.getElementById('ri-notes-'+id);
+    if(startTimeEl) r.startTime = startTimeEl.value || null;
+    if(endTimeEl)   r.endTime   = endTimeEl.value || null;
+    if(locationEl)  r.location  = locationEl.value.trim();
+    if(pricePerEl)  r.pricePerLesson = pricePerEl.value ? parseFloat(pricePerEl.value) : 0;
+    if(priceTotalEl) r.packageTotal  = priceTotalEl.value ? parseFloat(priceTotalEl.value) : 0;
+    if(lessonsEl)   r.totalLessons   = lessonsEl.value ? parseInt(lessonsEl.value) : 0;
+    if(notesEl)     r.classNotes     = notesEl.value.trim();
+  }
 
   // 同步到飞书：更新这条规则记录(不新建)
   feishuUpdateRecurringFull(r).then(()=>showSyncToast('✓ Rule updated in Feishu'));
@@ -2453,10 +2662,6 @@ function openStats(){
     const accColor=subAcc===null?'var(--text-3)':subAcc>=90?'var(--green)':subAcc>=70?'var(--amber)':'var(--red)';
     return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="width:80px;font-size:12px;font-weight:600;color:var(--text-2);flex-shrink:0">${subj}</div><div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${barW}%;height:100%;background:var(--accent);border-radius:4px"></div></div><div style="width:50px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);text-align:right">${durFmt(s.secs)||'—'}</div><div style="width:36px;font-size:11px;font-family:'DM Mono',monospace;color:${accColor};text-align:right">${subAcc!==null?subAcc+'%':'—'}</div></div>`;
   }).join('');
-  const last7=[];
-  for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const dayTasks=TASKS.filter(t=>fmtISO(t.date)===fmtISO(d)&&t.status==='done'&&!isHidden(t)); last7.push({label:d.toLocaleDateString('en-AU',{weekday:'short'}),secs:dayTasks.reduce((a,t)=>a+(t.totalSecs||0),0),isToday:i===0}); }
-  const maxDaySecs=Math.max(...last7.map(d=>d.secs),1);
-  const dayBars=last7.map(d=>`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1"><div style="font-size:10px;font-family:'DM Mono',monospace;color:${d.secs>0?'var(--text-2)':'var(--text-3)'}">${d.secs>0?durFmt(d.secs):''}</div><div style="width:100%;background:var(--border);border-radius:4px;height:60px;display:flex;align-items:flex-end;overflow:hidden"><div style="width:100%;height:${Math.round((d.secs/maxDaySecs)*100)}%;background:${d.isToday?'var(--accent)':'var(--accent-bg)'};border-radius:4px;min-height:${d.secs>0?'4px':'0'}"></div></div><div style="font-size:10px;font-weight:${d.isToday?'700':'500'};color:${d.isToday?'var(--accent)':'var(--text-3)'}">${d.label}</div></div>`).join('');
   const statBox=(label,value,sub,color)=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;flex:1"><div style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:${color};line-height:1">${value}</div>${sub?`<div style="font-size:11px;color:var(--text-3);margin-top:3px">${sub}</div>`:''}</div>`;
   const streak = getCurrentStreak();
   const streakHTML = `<div style="background:linear-gradient(135deg,var(--accent-bg),#fff);border:2px solid var(--accent);border-radius:14px;padding:18px 20px;margin-bottom:20px;display:flex;align-items:center;gap:16px">
@@ -2467,10 +2672,56 @@ function openStats(){
     </div>
   </div>`;
   const html=`${streakHTML}<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px"><div><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Today</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Time Spent',durFmt(todaySecs)||'—',`${todayDone.length} tasks done`,'var(--accent)')}${statBox('Pending',todayAll.filter(t=>t.status!=='done').length,'tasks remaining','var(--amber)')}</div></div><div><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">All Time</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Total Time',durFmt(totalSecs)||'—',`${allDone.length} tasks completed`,'var(--green)')}${statBox('Avg Accuracy',avgAcc!==null?avgAcc+'%':'—',`${withMarking.length} marked tasks`,avgAcc>=90?'var(--green)':avgAcc>=70?'var(--amber)':'var(--red)')}</div></div></div>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">Last 7 Days</div><div style="display:flex;gap:6px;align-items:flex-end">${dayBars}</div></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px" id="statsTrendCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3)">Trends</div>
+      <div style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:8px">
+        <button class="timer-mode-btn ${statsTrendGranularity==='day'?'active':''}" onclick="setStatsTrendGranularity('day')" style="padding:5px 12px">Daily</button>
+        <button class="timer-mode-btn ${statsTrendGranularity==='week'?'active':''}" onclick="setStatsTrendGranularity('week')" style="padding:5px 12px">Weekly</button>
+        <button class="timer-mode-btn ${statsTrendGranularity==='month'?'active':''}" onclick="setStatsTrendGranularity('month')" style="padding:5px 12px">Monthly</button>
+      </div>
+    </div>
+    <div id="statsTrendBody"></div>
+  </div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">By Subject</div>${subjectRows||'<div style="color:var(--text-3);font-size:13px">No data yet.</div>'}<div style="font-size:10px;color:var(--text-3);margin-top:8px">Bar = time spent · Right column = accuracy</div></div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">Review Status</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Pending',reviewPend.length,'need review','var(--amber)')}${statBox('Completed',reviewDone.length,'reviews done','var(--green)')}</div></div>`;
   showFullPage('📊 Stats', html);
+  renderStatsTrend();
+}
+
+// 趋势图颗粒度状态：'day'=最近7天, 'week'=最近8周, 'month'=最近6个月。默认day，先看细节再看大趋势更符合浏览习惯
+let statsTrendGranularity = 'day';
+function setStatsTrendGranularity(g){
+  statsTrendGranularity = g;
+  // 切换按钮的高亮态也要跟着更新(不用重新调openStats整页重绘，只刷新这一小块)
+  const btns = document.querySelectorAll('#statsTrendCard .timer-mode-btn');
+  btns.forEach(b=>b.classList.remove('active'));
+  const idx = {day:0, week:1, month:2}[g];
+  if(btns[idx]) btns[idx].classList.add('active');
+  renderStatsTrend();
+}
+
+function renderStatsTrend(){
+  const container = document.getElementById('statsTrendBody');
+  if(!container) return;
+  const points = statsTrendGranularity==='day' ? getDailyTrend(7) : statsTrendGranularity==='week' ? getWeeklyTrend(8) : getMonthlyTrend(6);
+  const hasAnyData = points.some(p=>p.completionPct!=null || p.totalSecs>0);
+  if(!hasAnyData){
+    container.innerHTML = emptyHTML('No data yet for this period.');
+    return;
+  }
+  container.innerHTML = `
+    <div style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
+        <div style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block"></span>Completion rate</div>
+        <div style="font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:50%;background:var(--purple);display:inline-block"></span>Accuracy</div>
+      </div>
+      ${lineChartSVG(points)}
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--text-2);margin-bottom:6px;display:flex;align-items:center;gap:5px"><span style="width:10px;height:10px;border-radius:3px;background:var(--green);display:inline-block"></span>Time spent</div>
+      ${barChartSVG(points)}
+    </div>`;
 }
 
 function openPoints(){
@@ -2845,6 +3096,8 @@ async function feishuUpdateRecurring(rule, newStatus){
 async function feishuUpdateRecurringFull(rule){
   if(!rule.feishuId) return;
   const fields = {
+    'Task Details': rule.name,
+    'Subject': rule.subjects && rule.subjects.length ? rule.subjects : (rule.subject ? [rule.subject] : []),
     'Frequency': rule.freq.charAt(0).toUpperCase() + rule.freq.slice(1),
     'Recurring Days': rule.days,
     'Recur Start': rule.startDate ? new Date(rule.startDate+'T00:00:00').getTime() : null,
