@@ -39,6 +39,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .abar-btn.red:hover{background:#FECACA;}
 .abar-divider{width:1px;height:24px;background:var(--border2);margin:0 2px;}
 .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;}
+.week-strip{display:flex;align-items:center;gap:6px;margin-bottom:14px;}
+.week-nav-btn{width:32px;height:32px;flex-shrink:0;border:1px solid var(--border2);background:var(--surface);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:13px;transition:all 0.15s;}
+.week-nav-btn:hover{background:var(--border);color:var(--text);}
+.week-days{flex:1;display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.week-day-cell{background:var(--surface);border:2px solid var(--border);border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer;transition:all 0.15s;user-select:none;}
+.week-day-cell:hover{border-color:var(--accent);}
+.week-day-cell.is-today{border-color:var(--accent);background:var(--accent-bg);}
+.week-day-cell.is-selected{border-color:var(--accent);background:var(--accent);}
+.week-day-cell.is-selected .week-day-label,.week-day-cell.is-selected .week-day-num{color:white;}
+.week-day-label{font-size:10px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px;}
+.week-day-num{font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);}
+.week-day-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);margin:3px auto 0;}
+.calendar-btn{width:32px;height:32px;flex-shrink:0;border:1px solid var(--border2);background:var(--surface);border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all 0.15s;}
+.calendar-btn:hover{background:var(--border);}
+.date-detail-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;}
+.date-detail-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.date-detail-title{font-size:13px;font-weight:700;color:var(--text-2);}
+.date-detail-close{font-size:12px;color:var(--text-3);cursor:pointer;padding:4px 8px;border-radius:6px;}
+.date-detail-close:hover{background:var(--bg);color:var(--text);}
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+.month-day-header{font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-3);text-align:center;padding-bottom:6px;}
+.month-day-cell{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;min-height:74px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;}
+.month-day-cell:hover{border-color:var(--accent);}
+.month-day-cell.is-today{border-color:var(--accent);background:var(--accent-bg);}
+.month-day-cell.other-month{opacity:0.35;}
+.month-day-num{font-size:12px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);margin-bottom:3px;}
+.month-day-item{font-size:10px;padding:1px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.month-day-more{font-size:10px;color:var(--text-3);}
 .stat-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);padding:16px 18px;cursor:pointer;transition:all 0.2s;user-select:none;box-shadow:0 1px 4px rgba(67,97,238,0.06);}
 .stat-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 16px rgba(67,97,238,0.12);}
 .stat-card.active{border-color:var(--accent);background:linear-gradient(135deg,var(--accent-bg),#fff);box-shadow:0 4px 16px rgba(67,97,238,0.15);}
@@ -202,6 +230,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 @media(max-width:600px){
   .action-bar{gap:6px;}.abar-btn{padding:7px 10px;font-size:11px;}.abar-divider{display:none;}
   .main{padding:12px 10px;}.stats-row{grid-template-columns:repeat(2,1fr);gap:8px;}.stat-value{font-size:30px;}
+  .week-day-label{font-size:9px;}.week-day-num{font-size:14px;}.week-day-cell{padding:6px 2px;}
+  .month-day-cell{min-height:54px;padding:4px;}.month-day-item{font-size:9px;}.month-day-num{font-size:11px;}
   .task-main{padding:10px 12px;gap:8px;flex-wrap:wrap;align-items:center;}.task-name{font-size:15px;white-space:normal;overflow:visible;text-overflow:initial;width:100%;}
   .task-info{min-width:0;flex:1 1 auto;}
   .task-meta-row{flex-wrap:wrap;gap:5px;row-gap:6px;}
@@ -229,6 +259,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <button class="abar-btn red"     onclick="openErrorBook()">📖 Error Book</button>
     <button class="abar-btn" style="background:var(--red-bg);color:var(--red);border:1px solid #FECACA" onclick="setView('marking')">📝 Pending Marking <span id="abarMkBadge" style="display:none"></span></button>
   </div>
+  <div class="week-strip">
+    <button class="week-nav-btn" onclick="shiftWeek(-1)">‹</button>
+    <div class="week-days" id="weekDays"></div>
+    <button class="week-nav-btn" onclick="shiftWeek(1)">›</button>
+    <button class="calendar-btn" onclick="openMonthView()" title="Month view">📅</button>
+  </div>
+  <div id="dateDetailPanel"></div>
   <div class="stats-row">
     <div class="stat-card" id="sc-today"   onclick="setView('today')"><div class="stat-label">Today</div><div class="stat-value sv-blue" id="sTd">0</div></div>
     <div class="stat-card" id="sc-overdue"  onclick="setView('overdue')"><div class="stat-label">Overdue</div><div class="stat-value sv-red" id="sOv">0</div></div>
@@ -510,17 +547,24 @@ let TASKS = [
 ];
 let taskIdCounter = 7;
 
+// 判断一条Recurring规则是否匹配某个指定日期(不局限于今天)。
+// 抽成公共函数,因为"今天该不该生成"(generateRecurring)和"日历上某天该预测什么"(日历功能)是同一套判断逻辑,
+// 写两份容易日后改一处忘改另一处。dateObj是Date对象,dateStr是其对应的'YYYY-MM-DD'字符串(由调用方传入,避免重复计算fmtISO)。
+function recurringMatchesDate(r, dateObj, dateStr){
+  if(!r.active) return false;
+  if(r.startDate && dateStr<r.startDate) return false;
+  if(r.endDate && dateStr>r.endDate) return false;
+  if(r.skipDates && r.skipDates.some(s=>dateStr>=s.from&&dateStr<=s.to)) return false;
+  const dayShort = DAYS_SHORT[dateObj.getDay()];
+  return r.freq==='daily' ||
+    (r.freq==='weekly' && r.days.includes(dayShort)) ||
+    (r.freq==='monthly' && r.days.includes(String(dateObj.getDate())));
+}
+
 function generateRecurring(writeToFeishu){
-  const todayStr=fmtISO(today), todayDay=DAYS_SHORT[today.getDay()];
+  const todayStr=fmtISO(today);
   RECURRING.forEach(r=>{
-    if(!r.active) return;
-    if(r.startDate&&todayStr<r.startDate) return;
-    if(r.endDate&&todayStr>r.endDate) return;
-    if(r.skipDates&&r.skipDates.some(s=>todayStr>=s.from&&todayStr<=s.to)) return;
-    const matches = r.freq==='daily' ||
-      (r.freq==='weekly'&&r.days.includes(todayDay)) ||
-      (r.freq==='monthly'&&r.days.includes(String(today.getDate())));
-    if(!matches) return;
+    if(!recurringMatchesDate(r, today, todayStr)) return;
     if(r.feishuId && TASKS.find(t=>t.recurId===r.feishuId&&fmtISO(t.date)===todayStr)) return;
     if(!r.feishuId && TASKS.find(t=>t.recurId===r.id&&fmtISO(t.date)===todayStr)) return;
     const id='T'+String(taskIdCounter++).padStart(3,'0');
@@ -542,6 +586,59 @@ function generateRecurring(writeToFeishu){
   });
 }
 generateRecurring(false);
+
+// ════════════════════════════════════════════
+// ── 日历功能：周条 + 月视图共用的数据函数 ──
+// ════════════════════════════════════════════
+
+// 获取某一天应该显示的所有事项。dateStr格式'YYYY-MM-DD'。
+// 返回 {realTasks, realReviews, predicted}：
+//   realTasks/realReviews = 飞书里真实存在、日期等于dateStr的task/class/review记录(用现成的卡片渲染,可点开操作)
+//   predicted = 根据Active的Recurring规则推算出"这天应该有"但还没真正生成到TASKS里的项目(只用于展示,不可点开操作)
+// 只有dateStr是未来日期时才计算predicted —— 过去/今天看真实发生了什么就够了,不需要预测
+function getItemsForDate(dateStr){
+  const realTasks = TASKS.filter(t=>fmtISO(t.date)===dateStr && !isHidden(t));
+  const realReviews = REVIEWS.filter(r=>fmtISO(r.date)===dateStr && !r.deleted);
+
+  const predicted = [];
+  if(dateStr > fmtISO(today)){
+    const dateObj = new Date(dateStr+'T00:00:00');
+    RECURRING.forEach(r=>{
+      if(!recurringMatchesDate(r, dateObj, dateStr)) return;
+      // 如果这条规则在这天已经有真实记录了(比如手动提前生成过/规则当天生成过)，就不重复显示预测项
+      const alreadyExists = realTasks.some(t=>t.recurId===r.feishuId || t.recurId===r.id);
+      if(alreadyExists) return;
+      predicted.push({
+        isPredicted: true,
+        type: r.type, // 'task' | 'class'
+        name: r.name,
+        subject: r.subject,
+        subjects: r.subjects || [r.subject],
+        startTime: r.startTime || '',
+        endTime: r.endTime || '',
+        estSecs: r.estSecs || null,
+        basePoints: r.basePoints || 0,
+      });
+    });
+  }
+  return { realTasks, realReviews, predicted };
+}
+
+// 简化的"预测项"卡片：灰色调展示，不可点击/展开，只是提示"这天按规则应该会有这些"
+function predictedItemHTML(p){
+  const icon = p.type==='class' ? '🏫' : '📝';
+  const timeStr = p.startTime && p.endTime ? ` · ${fmtTime(p.startTime)}–${fmtTime(p.endTime)}` : '';
+  const estStr = p.estSecs ? ` · ${durFmt(p.estSecs)}` : '';
+  return `<div class="task-card" style="opacity:0.6;cursor:default">
+    <div class="task-main" style="cursor:default">
+      <div class="task-check" style="border-style:dashed"></div>
+      <div class="task-info">
+        <div class="task-name">${icon} ${p.name}</div>
+        <div class="task-meta-row">${pillGroup(p.subjects)}<span class="task-date" style="font-style:italic">predicted${timeStr}${estStr}</span></div>
+      </div>
+    </div>
+  </div>`;
+}
 
 // ── TIMER STATE ──
 const TS={}, RVS={};
@@ -620,7 +717,100 @@ function isHidden(t){
   return t.deleted || t.classStatus==='skipped' || t.classStatus==='rescheduled';
 }
 
+// ════════════════════════════════════════════
+// ── 周条 (Week Strip) ──
+// ════════════════════════════════════════════
+// weekAnchorDate: 当前周条显示的那一周里的任意一天(用来算出周一~周日)，默认是今天
+// selectedDetailDate: 当前展开详情面板的日期('YYYY-MM-DD')，null表示没有展开(显示今天的默认内容)
+let weekAnchorDate = new Date(today);
+let selectedDetailDate = null;
+
+// 拿到weekAnchorDate所在那一周的周一(国际通用习惯，周一开头)
+function getMonday(d){
+  const dd = new Date(d);
+  const day = dd.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const diffToMonday = day===0 ? -6 : 1-day; // 周日的话要往前推6天才到周一
+  dd.setDate(dd.getDate()+diffToMonday);
+  dd.setHours(0,0,0,0);
+  return dd;
+}
+
+function shiftWeek(dir){
+  const d = new Date(weekAnchorDate);
+  d.setDate(d.getDate()+dir*7);
+  weekAnchorDate = d;
+  renderWeekStrip();
+}
+
+function renderWeekStrip(){
+  const container = document.getElementById('weekDays');
+  if(!container) return;
+  const monday = getMonday(weekAnchorDate);
+  const todayStr = fmtISO(today);
+  const dayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  let html = '';
+  for(let i=0;i<7;i++){
+    const d = new Date(monday); d.setDate(d.getDate()+i);
+    const dStr = fmtISO(d);
+    const isToday = dStr===todayStr;
+    const isSelected = dStr===selectedDetailDate;
+    // 小圆点提示这天有事项(真实记录或者是过去/今天，预测项不在这里计入，避免周条上全是点子显得乱)
+    const hasItems = TASKS.some(t=>fmtISO(t.date)===dStr&&!isHidden(t)) || REVIEWS.some(r=>fmtISO(r.date)===dStr&&!r.deleted);
+    html += `<div class="week-day-cell${isToday?' is-today':''}${isSelected?' is-selected':''}" onclick="onWeekDayClick('${dStr}')">
+      <div class="week-day-label">${dayLabels[i]}</div>
+      <div class="week-day-num">${d.getDate()}</div>
+      ${hasItems?'<div class="week-day-dot"></div>':''}
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function onWeekDayClick(dStr){
+  const todayStr = fmtISO(today);
+  if(dStr===todayStr || dStr===selectedDetailDate){
+    // 点"今天"或者再点一次已选中的那天 → 收起详情面板，恢复默认视图
+    selectedDetailDate = null;
+  } else {
+    selectedDetailDate = dStr;
+  }
+  renderWeekStrip();
+  renderDateDetailPanel();
+}
+
+function renderDateDetailPanel(){
+  const panel = document.getElementById('dateDetailPanel');
+  if(!panel) return;
+  if(!selectedDetailDate){ panel.innerHTML=''; return; }
+
+  const dStr = selectedDetailDate;
+  const { realTasks, realReviews, predicted } = getItemsForDate(dStr);
+  const dateObj = new Date(dStr+'T00:00:00');
+  const dateLabel = dateObj.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'short'});
+  const totalCount = realTasks.length + realReviews.length + predicted.length;
+
+  // 排序：未完成的排前面，完成的排后面(过去某天打开时一眼看出漏了什么)
+  const sortedTasks = [...realTasks].sort((a,b)=>(a.status==='done'?1:0)-(b.status==='done'?1:0));
+  const sortedReviews = [...realReviews].sort((a,b)=>(a.done?1:0)-(b.done?1:0));
+
+  let body = '';
+  if(!totalCount){
+    body = emptyHTML(dStr<fmtISO(today) ? 'Nothing recorded for this day.' : 'Nothing scheduled yet.');
+  } else {
+    body = sortedTasks.map(taskHTML).join('') + sortedReviews.map(reviewCardHTML).join('') + predicted.map(predictedItemHTML).join('');
+  }
+
+  panel.innerHTML = `<div class="date-detail-panel">
+    <div class="date-detail-header">
+      <div class="date-detail-title">${dateLabel} · ${totalCount} item${totalCount!==1?'s':''}</div>
+      <div class="date-detail-close" onclick="onWeekDayClick('${fmtISO(today)}')">✕ Close</div>
+    </div>
+    ${body}
+  </div>`;
+}
+
 function renderContent(){
+  renderWeekStrip();
+  renderDateDetailPanel();
   const todayStr = fmtISO(today);
   // 判定公式: 日期<今天 且 (未完成 或 今天才完成的) → Overdue; 日期=今天 且 (未完成 或 今天才完成的) → Today
   // 这样不管何时刷新页面: 今天完成的依然留在原分组划线展示; 一旦日期翻到第二天,"今天才完成的"条件天然不再满足,自动从新一天的列表里消失
@@ -1212,6 +1402,74 @@ function showFullPage(title, body){
   overlay.style.display='block';
 }
 function closeFullPage(){ const o=document.getElementById('fullPageOverlay'); if(o) o.style.display='none'; renderContent(); }
+
+// ════════════════════════════════════════════
+// ── 月视图 (Month View) ──
+// ════════════════════════════════════════════
+let monthViewDate = new Date(today); // 当前月视图显示的月份(取这个月的任意一天即可,只用它的年/月)
+
+function openMonthView(){
+  monthViewDate = new Date(today);
+  showFullPage('📅 Calendar', `<div id="monthViewBody"></div>`);
+  renderMonthGrid();
+}
+
+function shiftMonth(dir){
+  monthViewDate = new Date(monthViewDate.getFullYear(), monthViewDate.getMonth()+dir, 1);
+  renderMonthGrid();
+}
+
+function renderMonthGrid(){
+  const container = document.getElementById('monthViewBody');
+  if(!container) return;
+  const year = monthViewDate.getFullYear(), month = monthViewDate.getMonth();
+  const monthLabel = monthViewDate.toLocaleDateString('en-AU',{month:'long',year:'numeric'});
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = (firstOfMonth.getDay()+6)%7; // 把周日=0转换成"周一开头"的偏移量(0=周一,...6=周日)
+  const gridStart = new Date(year, month, 1-startOffset);
+  const todayStr = fmtISO(today);
+  const dayHeaders = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div class="month-day-header">${d}</div>`).join('');
+
+  let cells = '';
+  for(let i=0;i<42;i++){ // 6行x7列，足够覆盖任何月份的完整显示范围
+    const d = new Date(gridStart); d.setDate(d.getDate()+i);
+    const dStr = fmtISO(d);
+    const isOtherMonth = d.getMonth()!==month;
+    const isToday = dStr===todayStr;
+    const { realTasks, realReviews, predicted } = getItemsForDate(dStr);
+    const allItems = [...realTasks, ...realReviews, ...predicted];
+    const maxShow = 3;
+    const itemTags = allItems.slice(0,maxShow).map(it=>{
+      const isReview = !it.type; // review对象没有type字段，task/class对象有
+      const label = isReview ? '📌 '+it.name : (it.type==='class'?'🏫 ':'📝 ')+it.name;
+      const dimmed = it.isPredicted ? 'opacity:0.55;font-style:italic;' : '';
+      const isDone = isReview ? it.done : it.status==='done';
+      const bg = isDone ? 'var(--green-bg)' : 'var(--accent-bg)';
+      const fg = isDone ? 'var(--green)' : 'var(--accent)';
+      return `<div class="month-day-item" style="background:${bg};color:${fg};${dimmed}">${label}</div>`;
+    }).join('');
+    const moreCount = allItems.length-maxShow;
+    cells += `<div class="month-day-cell${isToday?' is-today':''}${isOtherMonth?' other-month':''}" onclick="onMonthDayClick('${dStr}')">
+      <div class="month-day-num">${d.getDate()}</div>
+      ${itemTags}
+      ${moreCount>0?`<div class="month-day-more">+${moreCount} more</div>`:''}
+    </div>`;
+  }
+
+  container.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <button class="week-nav-btn" onclick="shiftMonth(-1)">‹</button>
+    <div style="font-size:16px;font-weight:700">${monthLabel}</div>
+    <button class="week-nav-btn" onclick="shiftMonth(1)">›</button>
+  </div>
+  <div class="month-grid">${dayHeaders}${cells}</div>`;
+}
+
+// 点击月视图里某一天格子：关闭月视图，回到主页面，把周条跳到那天所在的那一周并展开详情
+function onMonthDayClick(dStr){
+  weekAnchorDate = new Date(dStr+'T00:00:00');
+  selectedDetailDate = dStr===fmtISO(today) ? null : dStr;
+  closeFullPage(); // 内部会调用renderContent()，renderContent()会用上面刚设好的状态渲染周条和详情面板，不需要再手动调用一次
+}
 
 function expandReview(id,e){
   if(e&&e.target.closest('.task-check')) return;
