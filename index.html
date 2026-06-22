@@ -1275,7 +1275,7 @@ function taskHTML(t){
   if(isDone){
     if(t.totalSecs) right+=`<span class="task-duration">${durFmt(t.totalSecs)}</span>`;
     if(hasAccData) right+=accBadge(pct);
-    else if(!t.marking || !t.marking.saved) right+=`<span class="marking-tag" style="background:var(--red-bg);color:var(--red)">⚠ Pending marking</span><button class="action-btn" style="padding:5px 10px;font-size:12px" onclick="quickMark('${t.id}',event)">⚡ Quick Mark</button>`;
+    else if(!t.marking || !t.marking.saved) right+=`<span class="marking-tag" style="background:var(--red-bg);color:var(--red)">⚠ Pending marking</span><button class="action-btn" style="padding:5px 10px;font-size:12px" onclick="quickMark('${t.id}',event)">✓ No Review</button>`;
     // 剩下的情况(marking.saved为true但没有正确率数据，即点过Quick Mark)：什么都不显示，跟Class勾选完成一样安静地标记完成
     if(t.basePoints) right+=`<span class="pts-tag">+${t.basePoints}pts</span>`;
   } else {
@@ -3500,6 +3500,7 @@ async function feishuSaveMarking(task){
     [F_TASK.errorCount]: mk.wrongQ    || 0,
     [F_TASK.accuracy]:   pct,
     [F_TASK.needReview]: mk.needReview || false,
+    'Marking Status':    true, // 独立标记"已批改/已确认"，不依赖totalQ是否填了具体数量
   };
   const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', fields);
   if(mk.needReview) await feishuCreateReview({date:task.date, subject:task.subject, subjects:task.subjects, name:task.name, totalQ:mk.totalQ, wrongQ:mk.wrongQ, taskRecordId:task.feishuId});
@@ -3589,7 +3590,11 @@ function feishuRecordToTask(rec){
   // 进入除法运算产生NaN(0/0)而不是被正确识别成"没有批改数据"返回null —— 这正是页面上显示"NaN%"的根因。
   const totalQ = f[F_TASK.totalQ] != null ? Number(f[F_TASK.totalQ]) : null;
   const wrongQ = f[F_TASK.errorCount] != null ? Number(f[F_TASK.errorCount]) : null;
-  const hasMarking = totalQ != null && totalQ > 0; // 总题数是0或没填，都不算有效的批改数据
+  // "是否已经批改/确认过"和"是否填了具体题数"是两件独立的事，必须分开判断：
+  // 用Marking Status这个独立的复选框字段代表"批改流程已经走完"(不管有没有具体数量，比如recite类作业标记No Review但没填题数)，
+  // 不能用totalQ>0去反推 —— 之前用totalQ>0判断,会导致"标记No Review但没填题数"的任务刷新后又变回Pending Marking，
+  // 因为没有题数时marking对象整个被设成null,saved这个状态被一起抹掉了。
+  const isMarked = !!f['Marking Status'];
   let status = statusMap[f[F_TASK.status]] || 'pending';
   // 如果日期是过去、还没完成，标记为overdue，才能显示在Overdue栏
   const dateOnly = new Date(dateVal); dateOnly.setHours(0,0,0,0);
@@ -3608,7 +3613,7 @@ function feishuRecordToTask(rec){
     estSecs: f[F_TASK.estimate] ? f[F_TASK.estimate]*60 : null,
     basePoints: Number(f[F_TASK.points]) || 0,
     totalSecs: Number(f[F_TASK.focusTime]) || 0,
-    marking: hasMarking ? {
+    marking: isMarked ? {
       totalQ, wrongQ,
       needReview: !!f[F_TASK.needReview],
       saved: true
