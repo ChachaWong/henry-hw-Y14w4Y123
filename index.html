@@ -1270,7 +1270,7 @@ function durFmt(s){ if(!s) return ''; const h=Math.floor(s/3600),m=Math.floor((s
 function accPct(tq,wq){ if(!tq) return null; return Math.round(((tq-(wq||0))/tq)*100); }
 function accBadge(pct){ if(pct===null) return ''; const c=pct>=90?'acc-good':pct>=70?'acc-ok':'acc-bad'; return `<span class="acc-badge ${c}">${pct}%</span>`; }
 function accBadgeHTML(pct){
-  if(pct===null||pct===undefined||isNaN(pct)) return `<span class="acc-badge acc-none">—%</span>`;
+  if(pct===null||pct===undefined||isNaN(pct)) return `<span class="acc-badge acc-none">—</span>`;
   const c = pct>=90?'acc-good':pct>=70?'acc-ok':'acc-bad';
   return `<span class="acc-badge ${c}">${pct}%</span>`;
 }
@@ -2853,29 +2853,53 @@ function openStats(){
   const todayAll=TASKS.filter(t=>fmtISO(t.date)===fmtISO(today)&&!isHidden(t));
   const allDone=TASKS.filter(t=>t.status==='done'&&!isHidden(t));
   const todayDone=todayAll.filter(t=>t.status==='done');
-  const reviewPend=REVIEWS.filter(r=>!r.done);
-  const reviewDone=REVIEWS.filter(r=>r.done);
-  const totalSecs=allDone.reduce((a,t)=>a+(t.totalSecs||0),0);
+  const reviewPend=REVIEWS.filter(r=>!r.done&&!r.deleted);
+  const reviewDone=REVIEWS.filter(r=>r.done&&!r.deleted);
   const todaySecs=todayDone.reduce((a,t)=>a+(t.totalSecs||0),0);
+
+  // 按类型(Task/Class/Review)分项统计时长，再求总计 —— Review本身也花了时间，之前完全没有被计入任何统计
+  const taskDoneOnly=allDone.filter(t=>t.type==='task');
+  const classDoneOnly=allDone.filter(t=>t.type==='class');
+  const taskSecs=taskDoneOnly.reduce((a,t)=>a+(t.totalSecs||0),0);
+  const classSecs=classDoneOnly.reduce((a,t)=>a+(t.totalSecs||0),0);
+  const reviewSecs=reviewDone.reduce((a,r)=>a+(r.totalSecs||0),0);
+  const totalSecs=taskSecs+classSecs+reviewSecs;
+
+  // 正确率：Task的marking.totalQ/wrongQ + Review的totalQ/wrongQ，两种来源合并算平均
   const withMarking=allDone.filter(t=>t.marking&&t.marking.saved&&t.marking.totalQ);
-  const avgAcc=withMarking.length?Math.round(withMarking.reduce((a,t)=>a+accPct(t.marking.totalQ,t.marking.wrongQ),0)/withMarking.length):null;
+  const reviewWithAcc=reviewDone.filter(r=>r.totalQ);
+  const allAccValues=[...withMarking.map(t=>accPct(t.marking.totalQ,t.marking.wrongQ)), ...reviewWithAcc.map(r=>accPct(r.totalQ,r.wrongQ))];
+  const avgAcc=allAccValues.length?Math.round(allAccValues.reduce((a,b)=>a+b,0)/allAccValues.length):null;
+  const markedCount=withMarking.length+reviewWithAcc.length;
+
   const subjects={};
-  allDone.forEach(t=>{
-    // 一条记录可能横跨多个学科(比如Reading+Writing合并的一节课)，By Subject这里按每个学科分别重复计入，
-    // 这样"Reading总时长"和"Writing总时长"都能看到这节课的完整时长。但上面的totalSecs/todaySecs是直接对
-    // allDone/todayDone数组求和，每条记录只贡献一次，不受这里影响，所以总时长不会被重复计算。
-    const subjList = (t.subjects && t.subjects.length) ? t.subjects : [t.subject];
+  const addToSubject=(subjList, secs, accValue, pts)=>{
     subjList.forEach(subj=>{
       if(!subjects[subj]) subjects[subj]={secs:0,count:0,acc:[],pts:0};
-      subjects[subj].secs+=t.totalSecs||0; subjects[subj].count+=1; subjects[subj].pts+=t.basePoints||0;
-      if(t.marking&&t.marking.saved&&t.marking.totalQ) subjects[subj].acc.push(accPct(t.marking.totalQ,t.marking.wrongQ));
+      subjects[subj].secs+=secs||0; subjects[subj].count+=1; subjects[subj].pts+=pts||0;
+      if(accValue!==null) subjects[subj].acc.push(accValue);
     });
+  };
+  allDone.forEach(t=>{
+    // 一条记录可能横跨多个学科(比如Reading+Writing合并的一节课)，By Subject这里按每个学科分别重复计入，
+    // 这样"Reading总时长"和"Writing总时长"都能看到这节课的完整时长。但上面的totalSecs是按类型分别求和，
+    // 每条记录只贡献一次，不受这里影响，所以总时长不会被重复计算。
+    const subjList = (t.subjects && t.subjects.length) ? t.subjects : [t.subject];
+    const accValue = (t.marking&&t.marking.saved&&t.marking.totalQ) ? accPct(t.marking.totalQ,t.marking.wrongQ) : null;
+    addToSubject(subjList, t.totalSecs, accValue, t.basePoints);
+  });
+  reviewDone.forEach(r=>{
+    // Review同样按学科计入时长和正确率，跟Task/Class统一汇总，否则"某学科总共花了多久"会漏掉Review贡献的时间
+    const subjList = (r.subjects && r.subjects.length) ? r.subjects : [r.subject];
+    const accValue = r.totalQ ? accPct(r.totalQ, r.wrongQ) : null;
+    addToSubject(subjList, r.totalSecs, accValue, r.points);
   });
   const maxSecs=Math.max(...Object.values(subjects).map(s=>s.secs),1);
   const subjectRows=Object.entries(subjects).sort((a,b)=>b[1].secs-a[1].secs).map(([subj,s])=>{
     const barW=Math.round((s.secs/maxSecs)*100);
     const subAcc=s.acc.length?Math.round(s.acc.reduce((a,b)=>a+b,0)/s.acc.length):null;
     const accColor=subAcc===null?'var(--text-3)':subAcc>=90?'var(--green)':subAcc>=70?'var(--amber)':'var(--red)';
+    // 没有正确率数据的学科只显示"—"占位，不带%号 —— 不是每条作业/复习都有批改数据，强行显示百分号会造成误导
     return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div style="width:80px;font-size:12px;font-weight:600;color:var(--text-2);flex-shrink:0">${subj}</div><div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${barW}%;height:100%;background:var(--accent);border-radius:4px"></div></div><div style="width:50px;font-size:12px;font-family:'DM Mono',monospace;color:var(--text-2);text-align:right">${durFmt(s.secs)||'—'}</div><div style="width:36px;font-size:11px;font-family:'DM Mono',monospace;color:${accColor};text-align:right">${subAcc!==null?subAcc+'%':'—'}</div></div>`;
   }).join('');
   const statBox=(label,value,sub,color)=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px 16px;flex:1"><div style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px">${label}</div><div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:${color};line-height:1">${value}</div>${sub?`<div style="font-size:11px;color:var(--text-3);margin-top:3px">${sub}</div>`:''}</div>`;
@@ -2887,7 +2911,10 @@ function openStats(){
       <div style="font-size:12px;color:var(--text-2);margin-top:3px">${streak>0?'Current streak — keep all tasks/classes done each day to keep it going!':'No active streak yet — complete all of today\'s tasks and classes to start one.'}</div>
     </div>
   </div>`;
-  const html=`${streakHTML}<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px"><div><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Today</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Time Spent',durFmt(todaySecs)||'—',`${todayDone.length} tasks done`,'var(--accent)')}${statBox('Pending',todayAll.filter(t=>t.status!=='done').length,'tasks remaining','var(--amber)')}</div></div><div><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">All Time</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Total Time',durFmt(totalSecs)||'—',`${allDone.length} tasks completed`,'var(--green)')}${statBox('Avg Accuracy',avgAcc!==null?avgAcc+'%':'—',`${withMarking.length} marked tasks`,avgAcc>=90?'var(--green)':avgAcc>=70?'var(--amber)':'var(--red)')}</div></div></div>
+  // 没有正确率数据时只显示"—"，不带%号(avgAcc为null时，颜色判断也要避开null>=90这种容易让人误读的比较，直接用三元表达式短路掉)
+  const avgAccColor = avgAcc===null ? 'var(--text-3)' : avgAcc>=90?'var(--green)':avgAcc>=70?'var(--amber)':'var(--red)';
+  const html=`${streakHTML}<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:24px"><div><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">Today</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Time Spent',durFmt(todaySecs)||'—',`${todayDone.length} done`,'var(--accent)')}${statBox('Pending',todayAll.filter(t=>t.status!=='done').length,'remaining','var(--amber)')}</div></div><div><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px">All Time</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Total Time',durFmt(totalSecs)||'—',`${allDone.length+reviewDone.length} completed`,'var(--green)')}${statBox('Avg Accuracy',avgAcc!==null?avgAcc+'%':'—',`${markedCount} marked`,avgAccColor)}</div></div></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">Time by Type</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Tasks',durFmt(taskSecs)||'—',`${taskDoneOnly.length} done`,'var(--accent)')}${statBox('Classes',durFmt(classSecs)||'—',`${classDoneOnly.length} done`,'var(--orange)')}${statBox('Reviews',durFmt(reviewSecs)||'—',`${reviewDone.length} done`,'var(--purple)')}${statBox('Total',durFmt(totalSecs)||'—','all combined','var(--green)')}</div></div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px" id="statsTrendCard">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
       <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3)">Trends</div>
@@ -2899,7 +2926,7 @@ function openStats(){
     </div>
     <div id="statsTrendBody"></div>
   </div>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">By Subject</div>${subjectRows||'<div style="color:var(--text-3);font-size:13px">No data yet.</div>'}<div style="font-size:10px;color:var(--text-3);margin-top:8px">Bar = time spent · Right column = accuracy</div></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">By Subject</div>${subjectRows||'<div style="color:var(--text-3);font-size:13px">No data yet.</div>'}<div style="font-size:10px;color:var(--text-3);margin-top:8px">Bar = time spent (tasks + classes + reviews) · Right column = accuracy</div></div>
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px"><div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:14px">Review Status</div><div style="display:flex;gap:8px;flex-wrap:wrap">${statBox('Pending',reviewPend.length,'need review','var(--amber)')}${statBox('Completed',reviewDone.length,'reviews done','var(--green)')}</div></div>`;
   showFullPage('📊 Stats', html);
   renderStatsTrend();
