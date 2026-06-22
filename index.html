@@ -590,6 +590,18 @@ function recurringMatchesDate(r, dateObj, dateStr){
     (r.freq==='monthly' && r.days.includes(String(dateObj.getDate())));
 }
 
+// 从Class的startTime/endTime("HH:MM"字符串)算出上课时长(秒)。
+// 手动勾选完成(tickClass)和自动完成(autoCompleteOverdueClasses)都调用这个函数算时长，避免两份重复逻辑。
+// 如果没填startTime或endTime，返回null(表示时长未知，调用方应该跳过自动完成或不覆盖totalSecs)。
+function classDurationSecs(startTime, endTime){
+  if(!startTime || !endTime) return null;
+  const [sh,sm] = startTime.split(':').map(Number);
+  const [eh,em] = endTime.split(':').map(Number);
+  let mins = (eh*60+em) - (sh*60+sm);
+  if(mins < 0) mins += 24*60; // 跨午夜的课(实际场景少见，但避免算出负数时长)
+  return mins * 60;
+}
+
 function generateRecurring(writeToFeishu){
   const todayStr=fmtISO(today);
   RECURRING.forEach(r=>{
@@ -2248,6 +2260,12 @@ function tickClass(id,e){
   playTickSound(done);
   task.status=done?'done':'pending';
   task.completedAt=done?Date.now():null;
+  // 勾选完成时，如果填了startTime/endTime就顺手算出课程时长(跟自动完成保持一致的时长记录逻辑)
+  // 取消勾选(改回pending)不清空totalSecs，避免覆盖掉可能已经存在的数据
+  if(done){
+    const dur = classDurationSecs(task.startTime, task.endTime);
+    if(dur!=null) task.totalSecs = dur;
+  }
   feishuUpdateClassStatus(task, done?'Attended':'Not Started');
   renderContent();
 }
@@ -3093,12 +3111,44 @@ async function feishuUpdatePauseStats(task){
 
 // ── 2b. 更新Class状态（Attended/Skipped/Rescheduled）──
 async function feishuUpdateClassStatus(task, statusLabel){
-  if(!task.feishuId) return;
+  if(!task.feishuId) return null;
   const fields = { 'Status': statusLabel };
   fields['Completed At'] = statusLabel === 'Attended' ? Date.now() : null;
+  // 标记为Attended时，如果算出了课程时长(totalSecs)，一并写入Focus Time(飞书存的是分钟)
+  if(statusLabel === 'Attended' && task.totalSecs) fields['Focus Time'] = Math.round(task.totalSecs/60);
   const res = await apiCall(`/classes/${task.feishuId}`, 'PATCH', fields);
   console.log('feishuUpdateClassStatus:', JSON.stringify(res));
   return res;
+}
+
+// ════════════════════════════════════════════
+// ── 兴趣班自动完成：默认"会去上"，只在Skip/Reschedule时才需要手动干预 ──
+// ════════════════════════════════════════════
+// 找出所有已经过了下课时间(endTime)、还没被手动处理的Class，自动标记为完成并算出时长。
+// "还没被手动处理" = status不是done，且classStatus不是skipped/rescheduled。
+// 没填startTime/endTime的Class不参与自动完成(没法判断"过没过结束时间")，保持手动点完成。
+// 不局限于今天 —— 好几天没开页面的话，过去几天没处理的课也一并自动完成(只要没被skip/reschedule就算去上了)。
+function autoCompleteOverdueClasses(){
+  const now = new Date();
+  const candidates = TASKS.filter(t =>
+    t.type==='class' && t.status!=='done' && !t.classStatus && t.startTime && t.endTime && !isHidden(t)
+  );
+  let anyChanged = false;
+  candidates.forEach(t=>{
+    const dateOnly = new Date(t.date); dateOnly.setHours(0,0,0,0);
+    const [eh,em] = t.endTime.split(':').map(Number);
+    const endDateTime = new Date(dateOnly); endDateTime.setHours(eh, em, 0, 0);
+    if(now < endDateTime) return; // 还没到下课时间，不处理
+    const dur = classDurationSecs(t.startTime, t.endTime);
+    t.status = 'done';
+    t.completedAt = endDateTime.getTime(); // 完成时间记为下课时刻，而不是"现在"(更准确反映这节课实际何时结束)
+    if(dur!=null) t.totalSecs = dur;
+    anyChanged = true;
+    feishuUpdateClassStatus(t, 'Attended').then(res=>{
+      if(!isFeishuUpdateSuccess(res)) console.error('autoCompleteOverdueClasses: failed to sync', t.name, JSON.stringify(res));
+    });
+  });
+  if(anyChanged) renderContent();
 }
 
 // ── 软删除: 标记Deleted=true,不真正从飞书删除,可恢复 ──
@@ -3575,6 +3625,9 @@ async function loadAllDataFromFeishu(){
       // 数据加载完后,立即检查今天该生成的Recurring任务/课程,如果还没生成就真正写入飞书
       // (这是方案A: 前端自己负责生成,不依赖Worker的Cron。去重靠Recurring Rule ID精确匹配,不会重复)
       generateRecurring(true);
+      // 检查是否有Class已经过了下课时间但还没处理(没done/skip/reschedule)，自动标记完成
+      // 放在generateRecurring之后：刚生成的今天的课，如果碰巧填的endTime已经过了(比如很晚才打开页面)，也能被一起检查到
+      autoCompleteOverdueClasses();
       renderContent();
       console.log('Loaded from Feishu:', loadedTasks.length, 'tasks/classes,', loadedRecurring.length, 'recurring rules,', loadedReviews.length, 'reviews');
     }
@@ -3591,6 +3644,8 @@ loadAllDataFromFeishu();
 renderSubjectPicker('at-subject-picker','atSubject','tasks');
 renderSubjectPicker('ac-type-picker','acType','classes');
 renderSubjectPicker('ar-subject-picker','arSubject','reviews');
+// 页面打开期间也每分钟轻量检查一次，覆盖"页面一直开着、没有刷新"的场景，避免错过自动完成的时机
+setInterval(autoCompleteOverdueClasses, 60*1000);
 </script>
 </body>
 </html>
