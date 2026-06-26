@@ -1857,8 +1857,11 @@ function tickReview(id,e){
   const rvCorrected=document.getElementById('rv-done-corrected');
   if(rvTotalWrong) rvTotalWrong.value=wrongVal!=null?wrongVal:'';
   if(rvCorrected) rvCorrected.value=(r.reviewedCount>0)?r.reviewedCount:'';
-  if(tst.elapsed>0){
-    document.getElementById('rvDoneTimeDisplay').textContent=durFmt(tst.elapsed)||'—';
+  // 已经记录的总时长 = 之前结算过的r.totalSecs(比如Stop过之后,飞书Focus Time里已经存了的) + 这次还没结算的tst.elapsed(running/paused状态下正在计的)。
+  // 之前这里只看tst.elapsed一个字段，但Stop会把它清零(时长已经转存进r.totalSecs了)，导致"已经Stop过、确实有时长"的review被误判成"没有任何记录"又弹窗要求手动输入。
+  const knownSecs = (r.totalSecs||0) + (tst.elapsed||0);
+  if(knownSecs>0){
+    document.getElementById('rvDoneTimeDisplay').textContent=durFmt(knownSecs)||'—';
     document.getElementById('rvDoneTimeSummary').style.display='block';
     document.getElementById('rvDoneTimeEntry').style.display='none';
   } else {
@@ -1872,7 +1875,10 @@ function tickReview(id,e){
 function confirmReviewDone(){
   const r=REVIEWS.find(rv=>rv.feishuId===pendingReviewDoneId); if(!r) return;
   const tst=getReviewTS(pendingReviewDoneId);
-  let totalSecs=tst.elapsed;
+  // 同样的道理：已经结算过的r.totalSecs + 这次还没结算的tst.elapsed，才是目前为止的真实总时长。
+  // 只有当这两者都是0(这个review从来没计过时、也没有任何已结算记录)，才需要用户手动输入。
+  const knownSecs = (r.totalSecs||0) + (tst.elapsed||0);
+  let totalSecs = knownSecs;
   if(!totalSecs){
     const m=parseInt(document.getElementById('rv-done-m')?.value)||0;
     if(!m){ alert('Please enter review time.'); return; }
@@ -1883,14 +1889,18 @@ function confirmReviewDone(){
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   const rvPoints=parseInt(document.getElementById('rv-done-points')?.value)||0;
   if(tst.elapsed>0){
+    // 这一段还没结算过，加进r.totalSecs(跟之前Stop时的写法一致：累加，不是覆盖)
     r.totalSecs=(r.totalSecs||0)+tst.elapsed;
     if(!r.sessions) r.sessions=[];
     r.sessions.push({a:'Done',t:'Today '+now});
-  } else if(totalSecs>0&&!r.totalSecs){
+  } else if(!r.totalSecs && totalSecs>0){
+    // 这个review之前完全没有任何时长记录(本地elapsed是0、飞书totalSecs也是0)，用户手动输入的分钟数才生效
     r.totalSecs=totalSecs;
     if(!r.sessions) r.sessions=[];
     r.sessions.push({a:'Manual',t:'Today '+now+' · '+durFmt(totalSecs)});
   }
+  // 否则(tst.elapsed是0,但r.totalSecs之前已经有值)：r.totalSecs保持原样不变，不需要再做任何加法——
+  // 这正是这次bug要修的场景：之前Stop过、Focus Time已经写好了，点Done的时候不应该再凭空加一份手动输入的时长进去。
   r.done=true;
   r.reviewedCount=corrected||r.reviewedCount||0;
   r.completedAt=Date.now();
