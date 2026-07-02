@@ -141,6 +141,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .sdot{width:7px;height:7px;border-radius:50%;background:var(--text-3);flex-shrink:0;}
 .sdot.running{background:var(--accent);animation:pulse 1.5s infinite;}
 .sdot.paused{background:var(--amber);}
+.sdot.remote{background:var(--accent);}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
 .btn-row{display:flex;gap:7px;flex-wrap:wrap;}
 .tbtn{padding:10px 16px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all 0.15s;display:flex;align-items:center;gap:5px;}
@@ -937,21 +938,45 @@ const REVIEW_STATUS_TO_STATE = { 'Not Started':'idle', 'In Progress':'paused', '
 // 用飞书加载回来的真实Review Status初始化本地计时器state，只在本地还没有该review的计时器状态时才初始化，
 // 避免覆盖用户在当前session里正在进行的计时操作。
 function initReviewTSFromStatus(r){
-  if(RVS[r.feishuId]) return; // 已存在本地状态(比如本session正在计时)，不覆盖
-  const state = REVIEW_STATUS_TO_STATE[r.reviewStatus] || 'idle';
-  RVS[r.feishuId] = {state, elapsed:r.totalSecs||0, sessionStart:null, interval:null, sessions:r.sessions||[]};
+  if(RVS[r.feishuId]) return;
+  if(r.reviewStatus === 'In Progress'){
+    const lsKey = 'hw-rv-timing-'+r.feishuId;
+    if(localStorage.getItem(lsKey)){
+      // 这台设备刚在计时刷新了 —— beforeunload已写Feishu+存了elapsed到localStorage，优先用它
+      const savedElapsed = parseInt(localStorage.getItem('hw-rv-timing-elapsed-'+r.feishuId))||r.totalSecs||0;
+      localStorage.removeItem(lsKey);
+      localStorage.removeItem('hw-rv-timing-elapsed-'+r.feishuId);
+      RVS[r.feishuId] = {state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:r.sessions||[]};
+    } else {
+      // 另一台设备在计时，只读显示
+      RVS[r.feishuId] = {state:'remote', elapsed:r.totalSecs||0, sessionStart:null, interval:null, sessions:r.sessions||[]};
+    }
+  } else {
+    const state = REVIEW_STATUS_TO_STATE[r.reviewStatus] || 'idle';
+    RVS[r.feishuId] = {state, elapsed:r.totalSecs||0, sessionStart:null, interval:null, sessions:r.sessions||[]};
+  }
 }
 
-// Task跟Review同样的问题：本地计时器TS对象只存在于内存里，刷新页面后TS是空的，
-// taskHTML渲染按钮时用的tst.state永远是初始值'idle'，导致不管飞书里Status存的是什么(哪怕是In Progress)，
-// 刷新后一律显示"▶ Start"——这正是"明明在平板上正在计时，电脑刷新却显示Start"的根因。
-// 跟Review一样，'In Progress'映射成'paused'(不直接当running)，因为不知道精确的开始时间，没法续算elapsed。
 const TASK_STATUS_TO_STATE = { 'Not Started':'idle', 'In Progress':'paused', 'Paused':'paused', 'Stopped':'stopped', 'Done':'idle' };
 function initTaskTSFromStatus(t){
-  if(TS[t.id]) return; // 已存在本地状态(比如本session正在计时)，不覆盖
-  if(t.status==='done') return; // 已完成的任务不需要初始化计时器状态(taskHTML的isDone分支根本不读tst.state)
-  const state = TASK_STATUS_TO_STATE[t._rawStatus] || 'idle';
-  TS[t.id] = {state, elapsed:t.totalSecs||0, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
+  if(TS[t.id]) return;
+  if(t.status==='done') return;
+  if(t._rawStatus === 'In Progress'){
+    const lsKey = 'hw-timing-'+t.feishuId;
+    if(localStorage.getItem(lsKey)){
+      // 这台设备刚在计时刷新了 —— beforeunload已写Feishu+存了elapsed到localStorage，优先用它
+      const savedElapsed = parseInt(localStorage.getItem('hw-timing-elapsed-'+t.feishuId))||t.totalSecs||0;
+      localStorage.removeItem(lsKey);
+      localStorage.removeItem('hw-timing-elapsed-'+t.feishuId);
+      TS[t.id] = {state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
+    } else {
+      // 另一台设备在计时，只读显示
+      TS[t.id] = {state:'remote', elapsed:t.totalSecs||0, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
+    }
+  } else {
+    const state = TASK_STATUS_TO_STATE[t._rawStatus] || 'idle';
+    TS[t.id] = {state, elapsed:t.totalSecs||0, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
+  }
 }
 
 // ── VIEW STATE ──
@@ -1375,12 +1400,12 @@ function taskHTML(t, showNoReviewBtn){
     // 不会卡在一个UI上已经不存在对应入口的状态分支里。
     const st = tst.state==='stopped' ? 'paused' : tst.state;
     if(st==='idle'){
-      // idle状态用大号、蓝色底的Start按钮(跟以前一样的视觉规格)，不是迷你版——这是这次明确要恢复的地方
       right += `<button class="action-btn primary" onclick="tStart('${t.id}',event)">▶ Start</button>`;
+    } else if(st==='remote'){
+      // 另一台设备在计时：只读显示，无操作按钮
+      if(!exp) right += `<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`;
+      if(!exp) right += `<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`;
     } else {
-      // running/paused状态：折叠卡片外面直接显示可操作的迷你按钮+实时跳动的计时数字+简短的状态文字，
-      // 不用点开详情面板才能Pause/Continue。计时数字的id(mini-clk)只在卡片没展开时才渲染——展开时这部分
-      // 计时显示职责交给详情面板里的clk-${id}，避免两个id同时存在于DOM里造成不必要的重复更新。
       const miniStLbl = {running:'● Recording', paused:'⏸ Paused'}[st];
       const miniStColor = {running:'var(--accent)', paused:'var(--amber)'}[st];
       if(!exp) right += `<span id="mini-stlbl-${t.id}" style="font-size:11px;font-weight:600;color:${miniStColor}">${miniStLbl}</span>`;
@@ -1537,6 +1562,29 @@ function expandedHTML(t){
         </div>
       </div>
     </div>`;
+  } else if(displayState === 'remote'){
+    // 另一台设备正在计时：只读显示，不给任何操作入口
+    rightCol = `<div style="flex:1;min-width:0;padding:12px 10px;display:flex;gap:10px;align-items:center">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <div class="sdot remote"></div>
+          <span style="font-size:12px;font-weight:600;color:var(--accent)">In Progress</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Timing on another device</div>
+        <div style="font-size:13px;font-family:'DM Mono',monospace;color:var(--text-2)">${durFmt(tst.elapsed)||'—'} synced</div>
+        ${t.estSecs?`<div class="est-compare" style="margin-top:5px">Est: <span>${durFmt(t.estSecs)}</span></div>`:''}
+      </div>
+      <div style="flex-shrink:0">
+        <div class="clock-wrap">
+          <svg viewBox="0 0 84 84"><circle class="c-track" cx="42" cy="42" r="34"/>
+            <circle class="c-prog running" cx="42" cy="42" r="34" style="stroke-dashoffset:${214-Math.min(tst.elapsed/3600,1)*214}"/></svg>
+          <div class="clock-center">
+            <div class="clock-time">${fmtSecs(tst.elapsed)}</div>
+            <div class="clock-lbl">synced</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
   } else {
     const tmode = taskTimerMode[t.id]||'stopwatch';
     rightCol = `<div style="flex:1;min-width:0;padding:8px 10px">
@@ -1613,6 +1661,12 @@ function reviewCardHTML(r){
           const tst=getReviewTS(r.feishuId);
           const st = tst.state==='stopped' ? 'paused' : tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
+          if(st==='remote'){
+            let html='';
+            if(!exp) html+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`;
+            if(!exp) html+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`;
+            return html;
+          }
           const labels={running:'● Recording', paused:'⏸ Paused'};
           const colors={running:'var(--accent)', paused:'var(--amber)'};
           let html='';
@@ -1699,7 +1753,7 @@ function reviewSubHTML(r, prefix){
   const BIG_R=50, BIG_CIRC=314;
   const bigOffset = BIG_CIRC - Math.min(tst.elapsed/3600,1)*BIG_CIRC;
 
-  const rvRightCol = !isDone ? `<div style="flex:1;min-width:0;padding:12px 10px">
+  const rvRightCol = !isDone && displayState !== 'remote' ? `<div style="flex:1;min-width:0;padding:12px 10px">
     <div style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:8px;margin-bottom:8px">
       <button class="timer-mode-btn ${rmode==='stopwatch'?'active':''}" style="font-size:10px;padding:3px 7px" onclick="setReviewTimerMode('${id}','stopwatch','${prefix}',this)">⬆ Stopwatch</button>
       <button class="timer-mode-btn ${rmode==='countdown'?'active':''}" style="font-size:10px;padding:3px 7px" onclick="setReviewTimerMode('${id}','countdown','${prefix}',this)">⬇ Countdown</button>
@@ -1739,6 +1793,29 @@ function reviewSubHTML(r, prefix){
             <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:500;line-height:1" id="rv-clk-${id}">${rmode==='countdown'?fmtReviewCountdown(id):fmtSecs(tst.elapsed)}</div>
             <div style="font-size:9px;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;margin-top:3px" id="rv-clklbl-${id}">${displayState==='running'?'focus':displayState}</div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>` : displayState === 'remote' ? `<div style="flex:1;min-width:0;padding:12px 10px;display:flex;gap:10px;align-items:center">
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <div class="sdot remote"></div>
+        <span style="font-size:12px;font-weight:600;color:var(--accent)">In Progress</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);margin-bottom:10px">Timing on another device</div>
+      <div style="font-size:13px;font-family:'DM Mono',monospace;color:var(--text-2)">${durFmt(tst.elapsed)||'—'} synced</div>
+    </div>
+    <div style="flex:1;display:flex;justify-content:center">
+      <div style="position:relative;width:120px;height:120px;flex-shrink:0">
+        <svg viewBox="0 0 120 120" style="transform:rotate(-90deg);width:120px;height:120px">
+          <circle fill="none" stroke="var(--border)" stroke-width="7" cx="60" cy="60" r="50"/>
+          <circle fill="none" stroke-width="7" stroke-linecap="round"
+            style="stroke-dasharray:314;stroke-dashoffset:${(314-Math.min(tst.elapsed/3600,1)*314).toFixed(1)};transition:stroke 0.3s"
+            cx="60" cy="60" r="50" class="c-prog running"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:500;line-height:1">${fmtSecs(tst.elapsed)}</div>
+          <div style="font-size:9px;color:var(--text-3);letter-spacing:0.06em;text-transform:uppercase;margin-top:3px">synced</div>
         </div>
       </div>
     </div>
@@ -1868,6 +1945,12 @@ function reviewPageCardHTML(r){
           const tst=getReviewTS(r.feishuId);
           const st = tst.state==='stopped' ? 'paused' : tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
+          if(st==='remote'){
+            let html='';
+            if(!exp) html+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`;
+            if(!exp) html+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`;
+            return html;
+          }
           const labels={running:'● Recording', paused:'⏸ Paused'};
           const colors={running:'var(--accent)', paused:'var(--amber)'};
           let html='';
@@ -2054,6 +2137,7 @@ function confirmReviewDone(){
   r.points=rvPoints;
   const notesEl=document.getElementById('rv2-notes-'+pendingReviewDoneId)||document.getElementById('rv-notes-'+pendingReviewDoneId)||document.getElementById('rvh-notes-'+pendingReviewDoneId);
   if(notesEl) r.notes=notesEl.value||'';
+  localStorage.removeItem('hw-rv-timing-'+pendingReviewDoneId);
   feishuUpdateReview(r, 'Done').then(()=>showSyncToast('✓ Review saved to Feishu'));
   playTickSound(true);
   closeModal('reviewDoneModal');
@@ -2195,7 +2279,7 @@ function rvStart(id,e){
   },500);
   rvUpdateCtrl(id,t);
   const r=REVIEWS.find(rv=>rv.feishuId===id);
-  if(r){ feishuUpdateReview(r,'In Progress'); feishuLogActionForReview(r,'Start'); }
+  if(r){ localStorage.setItem('hw-rv-timing-'+id,'1'); feishuUpdateReview(r,'In Progress'); feishuLogActionForReview(r,'Start'); }
 }
 function rvPause(id,e){
   if(e) e.stopPropagation();
@@ -2204,7 +2288,7 @@ function rvPause(id,e){
   t.sessions.push({a:'Pause',t:'Today '+new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})});
   rvUpdateCtrl(id,t);
   const r=REVIEWS.find(rv=>rv.feishuId===id);
-  if(r){ feishuLogActionForReview(r,'Pause'); feishuUpdateReview(r,'Paused'); }
+  if(r){ localStorage.removeItem('hw-rv-timing-'+id); feishuLogActionForReview(r,'Pause'); feishuUpdateReview(r,'Paused'); }
 }
 function rvContinue(id,e){
   if(e) e.stopPropagation();
@@ -2273,20 +2357,18 @@ function btnRow(id,state){
   if(state==='idle')    return `<button class="tbtn tbtn-start" onclick="tStart('${id}')">▶ Start</button>`;
   if(state==='running') return `<button class="tbtn tbtn-pause" onclick="tPause('${id}')">⏸ Pause</button>`;
   if(state==='paused')  return `<button class="tbtn tbtn-continue" onclick="tContinue('${id}')">▶ Continue</button>`;
+  if(state==='remote')  return ''; // 另一台设备在计时，不显示操作按钮
   return '';
 }
-// 折叠卡片外面用的迷你按钮：running只有Pause，paused只有Continue，不再有Stop按钮——
-// "暂停"本身就是可以安全标记完成的状态，不需要再额外一个语义重复的Stop动作。
-// idle状态改用大号的action-btn.primary样式Start按钮，在taskHTML/reviewCardHTML里单独处理，不走这个函数。
-// kind参数区分调用Task还是Review各自的Pause/Continue函数，避免Review的id被错误地传给Task的tPause/tContinue。
 function miniBtnRow(id,state,kind){
   const pauseFn = kind==='review' ? 'rvPause' : 'tPause';
   const continueFn = kind==='review' ? 'rvContinue' : 'tContinue';
   if(state==='running') return `<button class="tbtn-mini tbtn-pause" onclick="${pauseFn}('${id}',event)" title="Pause">⏸</button>`;
   if(state==='paused')  return `<button class="tbtn-mini tbtn-continue" onclick="${continueFn}('${id}',event)" title="Continue">▶</button>`;
+  if(state==='remote')  return ''; // 另一台设备在计时，无操作按钮
   return '';
 }
-function stLbl(s){ return {idle:'Ready to start',running:'Recording time…',paused:'Paused'}[s]||s; }
+function stLbl(s){ return {idle:'Ready to start',running:'Recording time…',paused:'Paused',remote:'In Progress on another device'}[s]||s; }
 
 function setTaskTimerMode(id,mode,btn){
   taskTimerMode[id]=mode;
@@ -2328,6 +2410,7 @@ function tStart(id,e){
   // ── 飞书：作业总表 Status → In Progress；计时记录表写一行 Start ──
   const task=TASKS.find(tk=>tk.id===id);
   if(task){
+    if(task.feishuId) localStorage.setItem('hw-timing-'+task.feishuId, '1'); // 标记"这台设备在计时"
     feishuUpdateStatus(task,'In Progress');
     feishuLogAction(task,'Start');
   }
@@ -2354,6 +2437,7 @@ function tPause(id,e){
   // ── 飞书：Status → Paused + 当前专注时间（分钟）；计时记录表写一行 Pause ──
   const task=TASKS.find(tk=>tk.id===id);
   if(task){
+    if(task.feishuId) localStorage.removeItem('hw-timing-'+task.feishuId);
     feishuUpdateStatus(task,'Paused',t.elapsed);
     feishuLogAction(task,'Pause');
   }
@@ -2567,6 +2651,7 @@ function confirmDone(){
   // 不再自动展开卡片——完成后保持折叠，让用户自己决定要不要点开看详情/批改
 
   // ── 飞书：Status → Finish + 最终专注时间 + Gap(预估-实际,正数=提前完成)；计时记录表写一行 Finish ──
+  if(task.feishuId) localStorage.removeItem('hw-timing-'+task.feishuId);
   feishuUpdateStatus(task,'Done',tst.elapsed).then(()=>showSyncToast('✓ Saved to Feishu'));
   feishuLogAction(task,'Done');
 
@@ -4171,6 +4256,80 @@ renderSubjectPicker('ac-type-picker','acType','classes');
 renderSubjectPicker('ar-subject-picker','arSubject','reviews');
 // 页面打开期间也每分钟轻量检查一次，覆盖"页面一直开着、没有刷新"的场景，避免错过自动完成的时机
 setInterval(autoCompleteOverdueClasses, 60*1000);
+
+// ── 刷新/关闭时自动暂停：把 In Progress 写成 Paused 写回飞书，下次任何设备都可以 Continue ──
+// 用 keepalive fetch（不依赖 async/await，浏览器保证请求在页面卸载后仍完成）。
+// 同时把 elapsed 存入 localStorage，以防飞书还没处理完就重新加载时作为准确时长的备用来源。
+window.addEventListener('beforeunload', () => {
+  // Task
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('hw-timing-'))
+    .forEach(key => {
+      const feishuId = key.replace('hw-timing-', '');
+      const task = TASKS.find(t => t.feishuId === feishuId);
+      if(!task) return;
+      const tst = TS[task.id];
+      if(!tst || tst.state !== 'running' || !tst.sessionStart) return;
+      const elapsed = Math.floor((Date.now() - tst.sessionStart) / 1000);
+      localStorage.setItem('hw-timing-elapsed-' + feishuId, String(elapsed));
+      // keepalive 写飞书 Paused
+      fetch(WORKER_URL + '/tasks/' + feishuId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 'Status': 'Paused', 'Focus Time': elapsed }),
+        keepalive: true,
+      });
+      // Time Record 写一条 Pause 记录
+      fetch(WORKER_URL + '/timelog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'Date':                     new Date(task.date).getTime(),
+          'Subject':                  subjectsArrOf(task),
+          'Task Details':             task.name,
+          'Action':                   'Pause',
+          'Action Time':              Date.now(),
+          'Type':                     'Task',
+          'Task&Review Record ID':    feishuId,
+        }),
+        keepalive: true,
+      });
+    });
+
+  // Review
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('hw-rv-timing-'))
+    .forEach(key => {
+      const feishuId = key.replace('hw-rv-timing-', '');
+      const r = REVIEWS.find(rv => rv.feishuId === feishuId);
+      if(!r) return;
+      const tst = RVS[feishuId];
+      if(!tst || tst.state !== 'running' || !tst.sessionStart) return;
+      const elapsed = (r.totalSecs || 0) + Math.floor((Date.now() - tst.sessionStart) / 1000);
+      localStorage.setItem('hw-rv-timing-elapsed-' + feishuId, String(elapsed));
+      fetch(WORKER_URL + '/reviews/' + feishuId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 'Review Status': 'Paused', 'Review Time': elapsed }),
+        keepalive: true,
+      });
+      // Time Record 写一条 Pause 记录
+      fetch(WORKER_URL + '/timelog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'Date':                     new Date(r.date).getTime(),
+          'Subject':                  subjectsArrOf(r),
+          'Task Details':             r.name,
+          'Action':                   'Pause',
+          'Action Time':              Date.now(),
+          'Type':                     'Review',
+          'Task&Review Record ID':    feishuId,
+        }),
+        keepalive: true,
+      });
+    });
+});
 </script>
 </body>
 </html>
