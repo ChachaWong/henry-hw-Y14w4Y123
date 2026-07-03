@@ -1120,10 +1120,10 @@ function renderDateDetailPanel(){
   const dateObj = new Date(dStr+'T00:00:00');
   const dateLabel = dateObj.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'short'});
 
-  // 翻看过去某一天时，隐藏页面下方常驻的"今天"统计卡片和任务列表，只专注显示这一天的历史，
-  // 避免历史记录和当下进度混在同一屏幕里显得混乱。今天/未来则恢复正常显示(详情面板+主体内容并存)。
-  if(statsRow) statsRow.style.display = isPast ? 'none' : '';
-  if(contentArea) contentArea.style.display = isPast ? 'none' : '';
+  // selectedDetailDate 永远不是今天（点今天会关闭面板），所以只要走到这里就一定是过去或未来的日期，
+  // 不管过去还是未来都应该隐藏今天的主内容，专注显示那一天的内容。
+  if(statsRow) statsRow.style.display = 'none';
+  if(contentArea) contentArea.style.display = 'none';
 
   let sortedTasks, sortedReviews, predicted, totalCount, body;
 
@@ -1136,7 +1136,7 @@ function renderDateDetailPanel(){
     totalCount = sortedTasks.length + sortedReviews.length;
     body = totalCount ? sortedTasks.map(t=>taskHTML(t)).join('') + sortedReviews.map(reviewCardHTML).join('') : emptyHTML('Nothing completed this day.');
   } else {
-    // 今天/未来：保持原样，正常显示所有内容(包括未完成的、以及未来日期的预测项)
+    // 未来的日期：显示那天实际安排的 + 预测生成的作业，不包含今天的内容（今天点击会关闭面板）
     const { realTasks, realReviews, predicted: pred } = getItemsForDate(dStr);
     sortedTasks = [...realTasks].sort((a,b)=>(a.status==='done'?1:0)-(b.status==='done'?1:0));
     sortedReviews = [...realReviews].sort((a,b)=>(a.done?1:0)-(b.done?1:0));
