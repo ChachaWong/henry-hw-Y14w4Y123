@@ -4179,6 +4179,11 @@ renderSubjectPicker('ac-type-picker','acType','classes');
 renderSubjectPicker('ar-subject-picker','arSubject','reviews');
 setInterval(autoCompleteOverdueClasses, 60*1000);
 
+// ── Worker 保活：每3分钟发一次 ping，防止 Cloudflare Worker 冷启动
+// Worker 闲置5分钟以上会被回收，下次请求需要重新启动并重新鉴权（慢2-3秒）。
+// 保活 ping 不读飞书数据，只刷新 Worker 内存里的鉴权 token，开销极小。
+setInterval(() => fetch(WORKER_URL + '/ping').catch(() => {}), 3 * 60 * 1000);
+
 // ── 刷新时同步存 elapsed 到 localStorage（不删 timing key，等飞书写成功后才删）
 window.addEventListener('beforeunload', () => {
   Object.keys(localStorage).filter(k=>k.startsWith('hw-timing-')&&!k.includes('-elapsed-')).forEach(key=>{
