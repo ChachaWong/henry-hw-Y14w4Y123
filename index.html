@@ -2634,11 +2634,16 @@ async function confirmReschedule(){
 }
 function undoTask(id){
   const task=TASKS.find(t=>t.id===id); if(!task) return;
-  const dateOnly = new Date(task.date); dateOnly.setHours(0,0,0,0);
-  task.status = dateOnly < today ? 'overdue' : 'pending';
-  task.totalSecs=0; task.sessions=[]; task.marking=null; task.completedAt=null; task.gapSecs=null; task.pauseCount=0; task.restSecs=0;
-  TS[id]=null; expandedId=null;
-  feishuUpdateStatus(task, 'Not Started', 0).then(()=>showSyncToast('✓ Reverted to pending'));
+  const tst=ts(id); // 拿到当前计时器状态（elapsed = 之前完成时记录的时长）
+  // 保留 totalSecs 和 elapsed，改回 Paused 而非 Not Started，
+  // 这样 Continue 按钮出现，用户可以接着计时，行为和普通 Paused 完全一致
+  const savedElapsed = tst.elapsed || task.totalSecs || 0;
+  task.status='pending'; task.completedAt=null; task.gapSecs=null;
+  task.marking=null; task.sessions=tst.sessions||[];
+  // 重置计时器到 paused 状态，保留 elapsed
+  TS[id]={state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:task.sessions, overtime:0};
+  expandedId=null;
+  feishuUpdateStatus(task, 'Paused', savedElapsed).then(()=>showSyncToast('✓ Reverted to paused'));
   renderContent();
 }
 function saveTaskDetails(id){
