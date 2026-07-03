@@ -306,8 +306,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div class="stats-row">
     <div class="stat-card" id="sc-today"   onclick="setView('today')"><div class="stat-label">Today</div><div class="stat-value sv-blue" id="sTd">0</div></div>
     <div class="stat-card" id="sc-overdue"  onclick="setView('overdue')"><div class="stat-label">Overdue</div><div class="stat-value sv-red" id="sOv">0</div></div>
-    <div class="stat-card" id="sc-done"     onclick="setView('done')"><div class="stat-label">Done Today</div><div class="stat-value sv-green" id="sDn">0</div></div>
     <div class="stat-card" id="sc-review"   onclick="setView('review')"><div class="stat-label">Review</div><div class="stat-value sv-amber" id="sRv">0</div></div>
+    <div class="stat-card" id="sc-done"     onclick="setView('done')"><div class="stat-label">Done Today</div><div class="stat-value sv-green" id="sDn">0</div></div>
   </div>
   <div id="contentArea"></div>
 </div>
@@ -1233,7 +1233,7 @@ function renderContent(){
   document.getElementById('sTd').textContent = todayPending.length;
   document.getElementById('sOv').textContent = overdue.length + reviewOverdue.length;
   document.getElementById('sDn').textContent = totalDoneCount;
-  document.getElementById('sRv').textContent = reviewPend.length;
+  document.getElementById('sRv').textContent = reviewToday.length; // 只统计今天未完成的 review
   const mkBadge = document.getElementById('abarMkBadge');
   if(mkBadge){
     if(pendingMarking.length){ mkBadge.textContent = '('+pendingMarking.length+')'; mkBadge.style.display='inline'; }
@@ -1307,20 +1307,23 @@ function renderContent(){
     const doneContent = filteredTasks.map(t=>taskHTML(t)).join('') + filteredReviews.map(reviewCardHTML).join('');
     area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Done Today</div><span class="section-badge badge-green">${filteredCount}</span></div>${filterBar}${doneContent||emptyHTML('Nothing matches this filter.')}</div>`;
   } else if(currentView==='review'){
-    const rvAllSubjects = [...new Set(allReviews.flatMap(subjectsArrOf))].sort();
-    const rvFiltered = rvDashSubjectFilter ? allReviews.filter(r=>matchesSubjectFilter(r,rvDashSubjectFilter)) : allReviews;
-    const rvOverdueList = [...rvFiltered.filter(r=>fmtISO(r.date)<todayStr)].sort((a,b)=>(a.done?1:0)-(b.done?1:0)||new Date(a.date)-new Date(b.date));
-    const rvTodayList = [...rvFiltered.filter(r=>fmtISO(r.date)===todayStr)].sort((a,b)=>(a.done?1:0)-(b.done?1:0)||a.subject.localeCompare(b.subject));
-    const totalCount = rvOverdueList.length + rvTodayList.length;
+    // 只显示今天的 review：未完成在前，已完成在后，不显示历史和 overdue
+    const rvTodayBase = REVIEWS.filter(r=>fmtISO(r.date)===todayStr);
+    const rvAllSubjects = [...new Set(rvTodayBase.flatMap(subjectsArrOf))].sort();
+    const rvFiltered = rvDashSubjectFilter ? rvTodayBase.filter(r=>matchesSubjectFilter(r,rvDashSubjectFilter)) : rvTodayBase;
+    const rvTodayPending = [...rvFiltered.filter(r=>!r.done)].sort((a,b)=>a.subject.localeCompare(b.subject));
+    const rvTodayDone    = [...rvFiltered.filter(r=>r.done)].sort((a,b)=>a.subject.localeCompare(b.subject));
+    const totalCount = rvFiltered.length;
+    const pendingCount = rvTodayPending.length;
     const selectStyle = "padding:7px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:white;cursor:pointer";
-    const filterBar = `<div style="margin-bottom:14px"><select onchange="setRvDashSubjectFilter(this.value)" style="${selectStyle}">
+    const filterBar = rvAllSubjects.length > 1 ? `<div style="margin-bottom:14px"><select onchange="setRvDashSubjectFilter(this.value)" style="${selectStyle}">
       <option value="">All subjects</option>
       ${rvAllSubjects.map(s=>`<option value="${s}" ${rvDashSubjectFilter===s?'selected':''}>${s}</option>`).join('')}
-    </select></div>`;
+    </select></div>` : '';
     let groups = '';
-    if(rvOverdueList.length) groups += `<div class="rv-group-title">Overdue · ${rvOverdueList.length}</div>${rvOverdueList.map(reviewCardHTML).join('')}`;
-    if(rvTodayList.length) groups += `<div class="rv-group-title">Today · ${rvTodayList.length}</div>${rvTodayList.map(reviewCardHTML).join('')}`;
-    area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Review</div><span class="section-badge badge-amber">${totalCount}</span></div>${filterBar}${groups||emptyHTML('No reviews yet.')}</div>`;
+    if(rvTodayPending.length) groups += rvTodayPending.map(reviewCardHTML).join('');
+    if(rvTodayDone.length) groups += `<div class="rv-group-title" style="margin-top:8px">✓ Done · ${rvTodayDone.length}</div>${rvTodayDone.map(reviewCardHTML).join('')}`;
+    area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Review</div><span class="section-badge badge-amber">${pendingCount}</span></div>${filterBar}${groups||emptyHTML('No reviews today.')}</div>`;
   } else if(currentView==='marking'){
     const sorted = [...pendingMarking].sort((a,b)=>new Date(b.date)-new Date(a.date));
     area.innerHTML = sectionHTML('Pending Marking', sorted.length, 'badge-red', sorted.map(t=>taskHTML(t,true)).join('')||emptyHTML('Nothing to mark.'));
