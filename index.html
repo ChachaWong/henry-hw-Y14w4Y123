@@ -1594,16 +1594,6 @@ function expandedHTML(t){
           </div>
           ${t.estSecs?`<div class="est-compare" style="margin-bottom:6px">Est: <span>${durFmt(t.estSecs)}</span></div>`:''}
           <div class="btn-row" id="btnrow-${t.id}" style="margin-bottom:10px">${btnRow(t.id,displayState)}</div>
-          <div style="border-top:1px solid var(--border);padding-top:7px">
-            <div class="quick-lbl" style="font-size:10px;margin-bottom:5px">Or log manually</div>
-            <div class="quick-inputs">
-              <input class="qinput" type="number" id="qh-${t.id}" placeholder="0" min="0" max="9">
-              <span class="qunit">hr</span>
-              <input class="qinput" type="number" id="qm-${t.id}" placeholder="25" min="0" max="59">
-              <span class="qunit">min</span>
-              <button class="tbtn-quick" onclick="quickDone('${t.id}')">✓</button>
-            </div>
-          </div>
         </div>
         <div style="flex:1;display:flex;justify-content:center;align-items:center">
           <div style="position:relative;width:120px;height:120px;flex-shrink:0">
@@ -1734,14 +1724,6 @@ function reviewSubHTML(r, prefix){
       <div style="flex:1;min-width:0">
         <div class="timer-status" style="margin-bottom:6px"><div class="sdot ${displayState}" id="rv-sdot-${id}"></div><span id="rv-stxt-${id}">${stLbl(displayState)}</span></div>
         <div class="btn-row" id="rv-btnrow-${id}" style="margin-bottom:10px">${reviewBtnRow(id,displayState)}</div>
-        <div style="border-top:1px solid var(--border);padding-top:7px">
-          <div class="quick-lbl" style="font-size:10px;margin-bottom:5px">Or log manually</div>
-          <div class="quick-inputs">
-            <input class="qinput" type="number" id="rv-qm-${id}" placeholder="10" min="0" max="599">
-            <span class="qunit">min</span>
-            <button class="tbtn-quick" onclick="quickReviewDone('${id}','${prefix}')">Done</button>
-          </div>
-        </div>
       </div>
       <div style="flex:1;display:flex;justify-content:center">
         <div style="position:relative;width:120px;height:120px;flex-shrink:0">
