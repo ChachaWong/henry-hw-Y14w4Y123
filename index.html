@@ -317,7 +317,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div class="field"><label>Subject <span style="font-weight:400;color:var(--text-3)">(select one or more)</span></label>
     <div class="picker" id="at-subject-picker"><span style="font-size:12px;color:var(--text-3)">Loading…</span></div>
   </div>
-  <div class="field"><label>Task Details</label><textarea id="at-details" placeholder="e.g. Worksheet Ch.5, Reading p.44–46…"></textarea></div>
+  <div class="field"><label>Task Details</label><textarea id="at-details" placeholder=""></textarea></div>
   <div class="field"><label>Henry's Estimated Time</label>
     <div class="picker" id="at-est-picker">
       <div class="pick-btn" onclick="pickEst(15,this,'at')">15m</div>
@@ -334,7 +334,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     </div>
   </div>
   <div class="field-row">
-    <div class="field"><label>Base Points</label><input type="number" id="at-points" placeholder="10" min="0" style="font-family:'DM Mono',monospace;"></div>
+    <div class="field"><label>Base Points</label><input type="number" id="at-points" placeholder="" min="0" style="font-family:'DM Mono',monospace;"></div>
     <div class="field" style="flex:2"><label>Recurring</label>
       <div class="picker" id="at-recur-picker">
         <div class="pick-btn sel" onclick="pickRecur('none',this,'at')">None</div>
@@ -350,7 +350,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
         <div class="day-btn" onclick="this.classList.toggle('sel')">Mo</div><div class="day-btn" onclick="this.classList.toggle('sel')">Tu</div><div class="day-btn" onclick="this.classList.toggle('sel')">We</div><div class="day-btn" onclick="this.classList.toggle('sel')">Th</div><div class="day-btn" onclick="this.classList.toggle('sel')">Fr</div><div class="day-btn" onclick="this.classList.toggle('sel')">Sa</div><div class="day-btn" onclick="this.classList.toggle('sel')">Su</div>
       </div>
     </div>
-    <div id="at-monthday-field" class="field" style="display:none"><label>Day of Month</label><input type="number" id="at-monthday" placeholder="e.g. 15" min="1" max="31"></div>
+    <div id="at-monthday-field" class="field" style="display:none"><label>Day of Month</label><input type="number" id="at-monthday" placeholder="" min="1" max="31"></div>
     <div class="field-row">
       <div class="field"><label>Start Date</label><input type="date" id="at-start-date"></div>
       <div class="field"><label>End Date (optional)</label><input type="date" id="at-end-date"></div>
@@ -365,27 +365,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <!-- ADD CLASS MODAL -->
 <div class="modal-overlay" id="addClassModal"><div class="modal">
   <div class="modal-title">🏫 Add After School Class</div>
+  <div id="ac-oneoff-date" class="field"><label>Date</label><input type="date" id="ac-date"></div>
   <div class="field"><label>Class Type <span style="font-weight:400;color:var(--text-3)">(select one or more)</span></label>
     <div class="picker" id="ac-type-picker"><span style="font-size:12px;color:var(--text-3)">Loading…</span></div>
   </div>
-  <div class="field"><label>Class Name <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><input type="text" id="ac-name" placeholder="e.g. Piano Lesson"></div>
+  <div class="field"><label>Class Details <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><input type="text" id="ac-name" placeholder=""></div>
   <div class="field-row">
     <div class="field"><label>Start Time</label><input type="time" id="ac-start"></div>
     <div class="field"><label>End Time</label><input type="time" id="ac-end"></div>
   </div>
-  <div class="field"><label>Location <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><input type="text" id="ac-location" placeholder="e.g. Chatswood"></div>
+  <div class="field"><label>Location <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><input type="text" id="ac-location" placeholder=""></div>
   <div style="margin-bottom:12px">
     <div style="font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px">Pricing</div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div class="field" style="margin-bottom:0;flex:1;min-width:120px"><label>Per lesson ($)</label><input type="number" id="ac-price-per" placeholder="e.g. 80" min="0" step="0.1" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field" style="margin-bottom:0;flex:1;min-width:120px"><label>Per lesson ($)</label><input type="number" id="ac-price-per" placeholder="" min="0" step="0.1" style="font-family:'DM Mono',monospace;"></div>
       <div style="padding-bottom:10px;color:var(--text-3);font-size:13px">or</div>
-      <div class="field" style="margin-bottom:0;flex:1;min-width:120px"><label>Package total ($)</label><input type="number" id="ac-price-total" placeholder="e.g. 800" min="0" step="0.1" style="font-family:'DM Mono',monospace;"></div>
-      <div class="field" style="margin-bottom:0;flex:1;min-width:100px"><label>Lessons in package</label><input type="number" id="ac-total-lessons" placeholder="e.g. 10" min="0" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field" style="margin-bottom:0;flex:1;min-width:120px"><label>Package total ($)</label><input type="number" id="ac-price-total" placeholder="" min="0" step="0.1" style="font-family:'DM Mono',monospace;"></div>
+      <div class="field" style="margin-bottom:0;flex:1;min-width:100px"><label>Lessons in package</label><input type="number" id="ac-total-lessons" placeholder="" min="0" style="font-family:'DM Mono',monospace;"></div>
     </div>
   </div>
-  <div class="field"><label>Notes (teacher, payment, etc.)</label><textarea id="ac-class-notes" placeholder="e.g. Teacher: Ms Li, paid until July"></textarea></div>
+  <div class="field"><label>Notes (teacher, payment, etc.)</label><textarea id="ac-class-notes" placeholder=""></textarea></div>
   <div class="field-row">
-    <div class="field"><label>Base Points</label><input type="number" id="ac-points" placeholder="5" min="0" style="font-family:'DM Mono',monospace;"></div>
+    <div class="field"><label>Base Points</label><input type="number" id="ac-points" placeholder="" min="0" style="font-family:'DM Mono',monospace;"></div>
     <div class="field" style="flex:2"><label>Recurring</label>
       <div class="picker" id="ac-recur-picker">
         <div class="pick-btn sel" onclick="pickRecur('none',this,'ac')">None</div>
@@ -395,14 +396,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
     </div>
   </div>
-  <div id="ac-oneoff-date" class="field"><label>Date</label><input type="date" id="ac-date"></div>
   <div id="ac-recur-options" style="display:none">
     <div id="ac-day-field" class="field" style="display:none"><label>Day of Week</label>
       <div class="day-picker" id="ac-day-picker">
         <div class="day-btn" onclick="this.classList.toggle('sel')">Mo</div><div class="day-btn" onclick="this.classList.toggle('sel')">Tu</div><div class="day-btn" onclick="this.classList.toggle('sel')">We</div><div class="day-btn" onclick="this.classList.toggle('sel')">Th</div><div class="day-btn" onclick="this.classList.toggle('sel')">Fr</div><div class="day-btn" onclick="this.classList.toggle('sel')">Sa</div><div class="day-btn" onclick="this.classList.toggle('sel')">Su</div>
       </div>
     </div>
-    <div id="ac-monthday-field" class="field" style="display:none"><label>Day of Month</label><input type="number" id="ac-monthday" placeholder="e.g. 15" min="1" max="31"></div>
+    <div id="ac-monthday-field" class="field" style="display:none"><label>Day of Month</label><input type="number" id="ac-monthday" placeholder="" min="1" max="31"></div>
     <div class="field-row">
       <div class="field"><label>Start Date</label><input type="date" id="ac-start-date"></div>
       <div class="field"><label>End Date (optional)</label><input type="date" id="ac-end-date"></div>
@@ -459,9 +459,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div class="field"><label>Subject <span style="font-weight:400;color:var(--text-3)">(select one or more)</span></label>
     <div class="picker" id="ar-subject-picker"><span style="font-size:12px;color:var(--text-3)">Loading…</span></div>
   </div>
-  <div class="field"><label>What needs review?</label><textarea id="ar-details" placeholder="e.g. Fraction word problems, spelling list 3…"></textarea></div>
-  <div class="field"><label>Total Questions (optional)</label><input type="number" id="ar-total" placeholder="e.g. 10" min="0"></div>
-  <div class="field"><label>Wrong Answers (optional)</label><input type="number" id="ar-wrong" placeholder="e.g. 2" min="0"></div>
+  <div class="field"><label>What needs review?</label><textarea id="ar-details" placeholder=""></textarea></div>
+  <div class="field"><label>Total Questions (optional)</label><input type="number" id="ar-total" placeholder="" min="0"></div>
+  <div class="field"><label>Wrong Answers (optional)</label><input type="number" id="ar-wrong" placeholder="" min="0"></div>
   <div class="modal-actions">
     <button class="mbtn-cancel" onclick="closeModal('addReviewModal')">Cancel</button>
     <button class="mbtn-save"   onclick="addReview()">Add Review</button>
