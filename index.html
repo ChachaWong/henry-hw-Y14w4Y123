@@ -1136,8 +1136,8 @@ function renderDateDetailPanel(){
     totalCount = sortedTasks.length + sortedReviews.length;
     body = totalCount ? sortedTasks.map(t=>taskHTML(t)).join('') + sortedReviews.map(reviewCardHTML).join('') : emptyHTML('Nothing completed this day.');
   } else {
-    // 未来的日期：显示那天实际安排的 + 预测生成的作业，不包含今天的内容（今天点击会关闭面板）
-    const { realTasks, realReviews, predicted: pred } = getItemsForDate(dStr);
+    // 未来的日期：只显示那天本身安排的 + 预测生成的，不带入过期未完成事项（overdue 留在今天显示）
+    const { realTasks, realReviews, predicted: pred } = getItemsForDate(dStr, false);
     sortedTasks = [...realTasks].sort((a,b)=>(a.status==='done'?1:0)-(b.status==='done'?1:0));
     sortedReviews = [...realReviews].sort((a,b)=>(a.done?1:0)-(b.done?1:0));
     predicted = pred;
