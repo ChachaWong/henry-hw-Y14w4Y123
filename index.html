@@ -2206,7 +2206,12 @@ function rvPause(id,e){
   t.sessions.push({a:'Pause',t:'Today '+new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})});
   rvUpdateCtrl(id,t);
   const r=REVIEWS.find(rv=>rv.feishuId===id);
-  if(r){ if(r.feishuId) localStorage.removeItem('hw-rv-timing-'+r.feishuId); feishuLogActionForReview(r,'Pause'); feishuUpdateReview(r,'Paused'); }
+  if(r){
+    if(r.feishuId) localStorage.removeItem('hw-rv-timing-'+r.feishuId);
+    r.totalSecs = t.elapsed; // 累计到本次暂停的总时长，对齐 tPause 的做法
+    feishuLogActionForReview(r,'Pause');
+    feishuUpdateReview(r,'Paused');
+  }
 }
 function rvContinue(id,e){
   if(e) e.stopPropagation();
@@ -3907,7 +3912,7 @@ async function feishuUpdateReview(r, status){
   r.reviewStatus = status; // 同步内存状态，避免下次读取r.reviewStatus时还是旧值
   const fields = { 'Review Status': status };
   fields['Completed At'] = status === 'Done' ? Date.now() : null;
-  if(r.totalSecs) fields['Review Time'] = r.totalSecs;
+  if(r.totalSecs != null && r.totalSecs >= 0) fields['Review Time'] = r.totalSecs;
   if(r.notes)     fields['Review Notes'] = r.notes;
   if(r.points)    fields['Review Reward Points'] = r.points;
   const res = await apiCall(`/reviews/${r.feishuId}`, 'PATCH', fields);
