@@ -4093,7 +4093,7 @@ function feishuRecordToRecurring(rec){
   return result;
 }
 
-// 主加载函数：拉取所有历史数据，替换演示数据
+// 主加载函数：先加载核心数据（tasks/classes/reviews）立即渲染，recurring 异步后台加载
 async function loadAllDataFromFeishu(){
   // ── 显示加载提示 ──
   const area = document.getElementById('contentArea');
@@ -4103,10 +4103,10 @@ async function loadAllDataFromFeishu(){
     <div style="font-size:12px">Fetching data from the cloud, almost there!</div>
   </div>`;
   try {
-    const [taskRes, classRes, recurRes, reviewRes] = await Promise.all([
+    // ── 第一阶段：核心数据并发加载（不含 recurring），加载完立即渲染 ──
+    const [taskRes, classRes, reviewRes] = await Promise.all([
       apiCall('/tasks', 'GET'),
       apiCall('/classes', 'GET'),
-      apiCall('/recurring', 'GET'),
       apiCall('/reviews', 'GET'),
     ]);
 
@@ -4115,37 +4115,44 @@ async function loadAllDataFromFeishu(){
       taskRes.data.items.forEach(rec => {
         const t = feishuRecordToTask(rec);
         loadedTasks.push(t);
-        initTaskTSFromStatus(t); // 用飞书的真实Status初始化按钮状态(idle/paused/stopped)，避免一律误显示成"Start"——跟Review同样的修复
+        initTaskTSFromStatus(t);
       });
     }
     if(classRes?.data?.items){
       classRes.data.items.forEach(rec => loadedTasks.push(feishuRecordToClass(rec)));
     }
 
-    const loadedRecurring = [];
-    if(recurRes?.data?.items){
-      recurRes.data.items.forEach(rec => loadedRecurring.push(feishuRecordToRecurring(rec)));
-    }
-
-    // Review完全独立加载,不跨TASKS数组判重/合并。每条Review只看自己的date和reviewStatus字段决定显示位置。
     const loadedReviews = [];
     if(reviewRes?.data?.items){
       reviewRes.data.items.forEach(rec => {
         const r = feishuRecordToReview(rec);
         if(!r.deleted){
           loadedReviews.push(r);
-          initReviewTSFromStatus(r); // 用飞书的Review Status初始化按钮状态(idle/paused/stopped)，避免一律误显示成"Start"
+          initReviewTSFromStatus(r);
         }
       });
     }
 
-    // 用飞书的真实数据填充进来(不再有演示数据需要保护，无条件替换，哪怕飞书目前是空的也如实反映)
     TASKS = loadedTasks;
-    RECURRING = loadedRecurring;
     REVIEWS = loadedReviews;
 
-    // 自动结束已过期的 Recurring 规则（endDate < 今天 且状态不是 Ended）
-    // 写入飞书 Status='Ended'，下次加载后自然从 manage 列表消失
+    autoCompleteOverdueClasses();
+    renderContent(); // ← 核心数据就绪，立刻显示给用户
+    console.log('Phase 1 loaded:', loadedTasks.length, 'tasks/classes,', loadedReviews.length, 'reviews');
+  } catch(e){
+    console.error('loadAllDataFromFeishu (phase 1) error:', e);
+  }
+
+  // ── 第二阶段：recurring 后台静默加载（不阻塞主界面显示）──
+  try {
+    const recurRes = await apiCall('/recurring', 'GET');
+    const loadedRecurring = [];
+    if(recurRes?.data?.items){
+      recurRes.data.items.forEach(rec => loadedRecurring.push(feishuRecordToRecurring(rec)));
+    }
+    RECURRING = loadedRecurring;
+
+    // 自动结束已过期的 Recurring 规则
     const todayStr2 = fmtISO(today);
     RECURRING.forEach(r => {
       if(!r.deleted && r.recurStatus !== 'Ended' && r.endDate && r.endDate < todayStr2){
@@ -4154,22 +4161,12 @@ async function loadAllDataFromFeishu(){
         feishuUpdateRecurring(r, 'Ended', false);
       }
     });
-    // 注意: 这里不再调用generateRecurring(true)批量检查所有Recurring规则——
-    // 之前的做法是"每次刷新页面都重新判断今天该不该生成"，但这样存在竞态窗口：如果短时间内
-    // 多次刷新(或多个设备分别刷新)，第一次写入飞书还没真正落库完成，第二次刷新查询飞书时可能
-    // 还查不到刚写入的那条，于是误判"今天还没生成"又生成了一条，导致同一天出现两条重复记录。
-    // 现在改成Cloudflare Worker的Cron Trigger(已配置为每12小时跑一次)负责每天的常规生成，
-    // 它是服务端唯一、按固定时间表触发的入口，不会因为前端刷新次数/设备数量而被多次触发，
-    // 从架构上直接消除了这种竞态。前端刷新页面现在只是单纯重新拉取并展示数据。
-    // (新建Recurring规则时如果今天就该生效，addTask/addClass里仍会立刻检查并生成这一条，不受影响)
-    // 检查是否有Class已经过了下课时间但还没处理(没done/skip/reschedule)，自动标记完成
-    autoCompleteOverdueClasses();
-    renderContent();
-    console.log('Loaded from Feishu:', loadedTasks.length, 'tasks/classes,', loadedRecurring.length, 'recurring rules,', loadedReviews.length, 'reviews');
+    console.log('Phase 2 loaded:', loadedRecurring.length, 'recurring rules');
   } catch(e){
-    console.error('loadAllDataFromFeishu error:', e);
+    console.error('loadAllDataFromFeishu (phase 2) error:', e);
   }
 }
+
 
 // ── INIT ──
 renderContent();
