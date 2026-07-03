@@ -1249,16 +1249,15 @@ function renderContent(){
       const combinedCount = overdueSort.length + reviewOverdueSort.length;
       let secHtml = `<div class="section-header"><div class="section-title">Overdue</div><span class="section-badge badge-red">${combinedCount}</span></div>`;
       if(overdueSort.length) secHtml += overdueSort.map(t=>taskHTML(t)).join('');
-      if(reviewOverdueSort.length) secHtml += `<div class="rv-group-title">📌 Review</div>` + reviewOverdueSort.map(reviewCardHTML).join('');
+      if(reviewOverdueSort.length) secHtml += reviewOverdueSort.map(reviewCardHTML).join('');
       html += `<div class="section">${secHtml}</div>`;
     }
     const todayPendSort = [...todayPending].sort((a,b)=>a.subject.localeCompare(b.subject));
     const todayDoneSort = [...todayDone].sort((a,b)=>a.subject.localeCompare(b.subject));
-    html += sectionHTML('Today', todayAll.length, '', [...todayPendSort,...todayDoneSort].map(t=>taskHTML(t)).join('')||emptyHTML('No tasks today.'));
-    if(reviewTodayAll.length){
-      const rvSort=[...reviewTodayAll].sort((a,b)=>(a.done?1:0)-(b.done?1:0)||a.subject.localeCompare(b.subject));
-      html += sectionHTML('Review', rvSort.length, 'badge-amber', rvSort.map(reviewCardHTML).join(''));
-    }
+    const rvTodaySort = [...reviewTodayAll].sort((a,b)=>(a.done?1:0)-(b.done?1:0)||a.subject.localeCompare(b.subject));
+    const todayTotalCount = todayAll.length + rvTodaySort.length;
+    const todayBody = [...todayPendSort,...todayDoneSort].map(t=>taskHTML(t)).join('') + rvTodaySort.map(reviewCardHTML).join('') || emptyHTML('No tasks today.');
+    html += sectionHTML('Today', todayTotalCount, '', todayBody);
     if(!html) html = emptyHTML('Nothing to show today.');
     area.innerHTML = html;
   } else if(currentView==='today'){
