@@ -2235,7 +2235,7 @@ function rvContinue(id,e){
   t.interval=setInterval(()=>{ t.elapsed=Math.floor((Date.now()-t.sessionStart)/1000); rvTickUI(id,t); },500);
   rvUpdateCtrl(id,t);
   const r=REVIEWS.find(rv=>rv.feishuId===id);
-  if(r){ feishuLogActionForReview(r,'Continue'); feishuUpdateReview(r,'In Progress'); }
+  if(r){ if(r.feishuId) localStorage.setItem('hw-rv-timing-'+r.feishuId,'1'); feishuLogActionForReview(r,'Continue'); feishuUpdateReview(r,'In Progress'); }
 }
 function rvFinish(id){
   const t=getReviewTS(id); clearInterval(t.interval); t.state='stopped';
@@ -2403,6 +2403,7 @@ function tContinue(id,e){
 
   // ── 飞书：Status → In Progress；计时记录表写一行 Continue ──
   if(task){
+    if(task.feishuId) localStorage.setItem('hw-timing-'+task.feishuId,'1'); // Continue 后重新标记"这台设备在计时"
     feishuUpdateStatus(task,'In Progress');
     feishuLogAction(task,'Continue');
     feishuUpdatePauseStats(task);
