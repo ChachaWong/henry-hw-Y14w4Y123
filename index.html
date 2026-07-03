@@ -940,17 +940,14 @@ function initReviewTSFromStatus(r){
   if(r.reviewStatus === 'In Progress'){
     const lsKey = 'hw-rv-timing-'+r.feishuId;
     if(localStorage.getItem(lsKey)){
-      // 这台设备刚在计时然后刷新 — 用 localStorage 存的 elapsed（比飞书更新鲜）
       const savedElapsed = parseInt(localStorage.getItem('hw-rv-timing-elapsed-'+r.feishuId)) || r.totalSecs || 0;
       localStorage.removeItem(lsKey);
       localStorage.removeItem('hw-rv-timing-elapsed-'+r.feishuId);
       RVS[r.feishuId] = {state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:r.sessions||[]};
-      // 页面加载时用正常 async API 写飞书（比 beforeunload keepalive 更可靠）
       r.totalSecs = savedElapsed;
       feishuUpdateReview(r, 'Paused');
       feishuLogActionForReview(r, 'Pause');
     } else {
-      // 另一台设备在计时 — 只读显示，无操作按钮
       RVS[r.feishuId] = {state:'remote', elapsed:r.totalSecs||0, sessionStart:null, interval:null, sessions:r.sessions||[]};
     }
   } else {
@@ -966,16 +963,13 @@ function initTaskTSFromStatus(t){
   if(t._rawStatus === 'In Progress'){
     const lsKey = 'hw-timing-'+t.feishuId;
     if(localStorage.getItem(lsKey)){
-      // 这台设备刚在计时然后刷新 — 用 localStorage 存的 elapsed（比飞书更新鲜）
       const savedElapsed = parseInt(localStorage.getItem('hw-timing-elapsed-'+t.feishuId)) || t.totalSecs || 0;
       localStorage.removeItem(lsKey);
       localStorage.removeItem('hw-timing-elapsed-'+t.feishuId);
       TS[t.id] = {state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
-      // 页面加载时用正常 async API 写飞书（比 beforeunload keepalive 更可靠）
       feishuUpdateStatus(t, 'Paused', savedElapsed);
       feishuLogAction(t, 'Pause');
     } else {
-      // 另一台设备在计时 — 只读显示，无操作按钮
       TS[t.id] = {state:'remote', elapsed:t.totalSecs||0, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
     }
   } else {
@@ -1642,11 +1636,7 @@ function reviewCardHTML(r){
           const tst=getReviewTS(r.feishuId);
           const st = tst.state==='stopped' ? 'paused' : tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
-          if(st==='remote'){
-            let h='';
-            if(!exp){ h+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`; h+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`; }
-            return h;
-          }
+          if(st==='remote'){ let h=''; if(!exp){ h+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`; h+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`; } return h; }
           const labels={running:'● Recording', paused:'⏸ Paused'};
           const colors={running:'var(--accent)', paused:'var(--amber)'};
           let html='';
@@ -1886,11 +1876,7 @@ function reviewPageCardHTML(r){
           const tst=getReviewTS(r.feishuId);
           const st = tst.state==='stopped' ? 'paused' : tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
-          if(st==='remote'){
-            let h='';
-            if(!exp){ h+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`; h+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`; }
-            return h;
-          }
+          if(st==='remote'){ let h=''; if(!exp){ h+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`; h+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`; } return h; }
           const labels={running:'● Recording', paused:'⏸ Paused'};
           const colors={running:'var(--accent)', paused:'var(--amber)'};
           let html='';
@@ -2300,17 +2286,18 @@ function btnRow(id,state){
   if(state==='paused')  return `<button class="tbtn tbtn-continue" onclick="tContinue('${id}')">▶ Continue</button>`;
   return '';
 }
+// 折叠卡片外面用的迷你按钮：running只有Pause，paused只有Continue，不再有Stop按钮——
+// "暂停"本身就是可以安全标记完成的状态，不需要再额外一个语义重复的Stop动作。
+// idle状态改用大号的action-btn.primary样式Start按钮，在taskHTML/reviewCardHTML里单独处理，不走这个函数。
+// kind参数区分调用Task还是Review各自的Pause/Continue函数，避免Review的id被错误地传给Task的tPause/tContinue。
 function miniBtnRow(id,state,kind){
   const pauseFn = kind==='review' ? 'rvPause' : 'tPause';
   const continueFn = kind==='review' ? 'rvContinue' : 'tContinue';
   if(state==='running') return `<button class="tbtn-mini tbtn-pause" onclick="${pauseFn}('${id}',event)" title="Pause">⏸</button>`;
   if(state==='paused')  return `<button class="tbtn-mini tbtn-continue" onclick="${continueFn}('${id}',event)" title="Continue">▶</button>`;
-  return ''; // idle / remote — 无迷你按钮
-}
-function stLbl(s){ return {idle:'Ready to start',running:'Recording time…',paused:'Paused',remote:'In Progress on another device'}[s]||s; }
   return '';
 }
-function stLbl(s){ return {idle:'Ready to start',running:'Recording time…',paused:'Paused'}[s]||s; }
+function stLbl(s){ return {idle:'Ready to start',running:'Recording time…',paused:'Paused',remote:'In Progress on another device'}[s]||s; }
 
 function setTaskTimerMode(id,mode,btn){
   taskTimerMode[id]=mode;
@@ -2352,7 +2339,7 @@ function tStart(id,e){
   // ── 飞书：作业总表 Status → In Progress；计时记录表写一行 Start ──
   const task=TASKS.find(tk=>tk.id===id);
   if(task){
-    if(task.feishuId) localStorage.setItem('hw-timing-'+task.feishuId, '1');
+    if(task.feishuId) localStorage.setItem('hw-timing-'+task.feishuId,'1');
     feishuUpdateStatus(task,'In Progress');
     feishuLogAction(task,'Start');
   }
@@ -4173,7 +4160,7 @@ setInterval(autoCompleteOverdueClasses, 60*1000);
 // ── 刷新时同步存 elapsed 到 localStorage（同步操作，可靠）
 // 页面重载后 initTaskTSFromStatus / initReviewTSFromStatus 读取这个值，用正常 async API 写飞书
 window.addEventListener('beforeunload', () => {
-  Object.keys(localStorage).filter(k=>k.startsWith('hw-timing-') && !k.includes('-elapsed-')).forEach(key=>{
+  Object.keys(localStorage).filter(k=>k.startsWith('hw-timing-')&&!k.includes('-elapsed-')).forEach(key=>{
     const feishuId=key.replace('hw-timing-','');
     const task=TASKS.find(t=>t.feishuId===feishuId);
     if(!task) return;
@@ -4181,7 +4168,7 @@ window.addEventListener('beforeunload', () => {
     if(!tst||tst.state!=='running'||!tst.sessionStart) return;
     localStorage.setItem('hw-timing-elapsed-'+feishuId, String(Math.floor((Date.now()-tst.sessionStart)/1000)));
   });
-  Object.keys(localStorage).filter(k=>k.startsWith('hw-rv-timing-') && !k.includes('-elapsed-')).forEach(key=>{
+  Object.keys(localStorage).filter(k=>k.startsWith('hw-rv-timing-')&&!k.includes('-elapsed-')).forEach(key=>{
     const feishuId=key.replace('hw-rv-timing-','');
     const r=REVIEWS.find(rv=>rv.feishuId===feishuId);
     if(!r) return;
