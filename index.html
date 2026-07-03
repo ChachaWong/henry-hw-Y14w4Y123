@@ -1233,7 +1233,7 @@ function renderContent(){
   document.getElementById('sTd').textContent = todayPending.length;
   document.getElementById('sOv').textContent = overdue.length + reviewOverdue.length;
   document.getElementById('sDn').textContent = totalDoneCount;
-  document.getElementById('sRv').textContent = reviewToday.length; // 只统计今天未完成的 review
+  document.getElementById('sRv').textContent = reviewPend.length; // 未完成 review 总数（overdue + 今天）
   const mkBadge = document.getElementById('abarMkBadge');
   if(mkBadge){
     if(pendingMarking.length){ mkBadge.textContent = '('+pendingMarking.length+')'; mkBadge.style.display='inline'; }
@@ -1307,22 +1307,26 @@ function renderContent(){
     const doneContent = filteredTasks.map(t=>taskHTML(t)).join('') + filteredReviews.map(reviewCardHTML).join('');
     area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Done Today</div><span class="section-badge badge-green">${filteredCount}</span></div>${filterBar}${doneContent||emptyHTML('Nothing matches this filter.')}</div>`;
   } else if(currentView==='review'){
-    // 只显示今天的 review：未完成在前，已完成在后，不显示历史和 overdue
-    const rvTodayBase = REVIEWS.filter(r=>fmtISO(r.date)===todayStr);
-    const rvAllSubjects = [...new Set(rvTodayBase.flatMap(subjectsArrOf))].sort();
-    const rvFiltered = rvDashSubjectFilter ? rvTodayBase.filter(r=>matchesSubjectFilter(r,rvDashSubjectFilter)) : rvTodayBase;
-    const rvTodayPending = [...rvFiltered.filter(r=>!r.done)].sort((a,b)=>a.subject.localeCompare(b.subject));
-    const rvTodayDone    = [...rvFiltered.filter(r=>r.done)].sort((a,b)=>a.subject.localeCompare(b.subject));
-    const totalCount = rvFiltered.length;
-    const pendingCount = rvTodayPending.length;
+    // overdue 里只显示未完成的（不显示过去已完成的历史记录）
+    // today 显示未完成 + 今天完成的
+    const rvOverdueBase = REVIEWS.filter(r=>fmtISO(r.date)<todayStr&&!r.done);
+    const rvTodayBase   = REVIEWS.filter(r=>fmtISO(r.date)===todayStr&&isReviewVisibleToday(r));
+    const rvAllSubjects = [...new Set([...rvOverdueBase,...rvTodayBase].flatMap(subjectsArrOf))].sort();
+    const rvOverdueFiltered = rvDashSubjectFilter ? rvOverdueBase.filter(r=>matchesSubjectFilter(r,rvDashSubjectFilter)) : rvOverdueBase;
+    const rvTodayFiltered   = rvDashSubjectFilter ? rvTodayBase.filter(r=>matchesSubjectFilter(r,rvDashSubjectFilter))   : rvTodayBase;
+    const rvOverdueSort  = [...rvOverdueFiltered].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const rvTodayPending = [...rvTodayFiltered.filter(r=>!r.done)].sort((a,b)=>a.subject.localeCompare(b.subject));
+    const rvTodayDone    = [...rvTodayFiltered.filter(r=>r.done)].sort((a,b)=>a.subject.localeCompare(b.subject));
+    const pendingCount = rvOverdueSort.length + rvTodayPending.length;
     const selectStyle = "padding:7px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:white;cursor:pointer";
     const filterBar = rvAllSubjects.length > 1 ? `<div style="margin-bottom:14px"><select onchange="setRvDashSubjectFilter(this.value)" style="${selectStyle}">
       <option value="">All subjects</option>
       ${rvAllSubjects.map(s=>`<option value="${s}" ${rvDashSubjectFilter===s?'selected':''}>${s}</option>`).join('')}
     </select></div>` : '';
     let groups = '';
+    if(rvOverdueSort.length)  groups += `<div class="rv-group-title">Overdue · ${rvOverdueSort.length}</div>${rvOverdueSort.map(reviewCardHTML).join('')}`;
     if(rvTodayPending.length) groups += rvTodayPending.map(reviewCardHTML).join('');
-    if(rvTodayDone.length) groups += `<div class="rv-group-title" style="margin-top:8px">✓ Done · ${rvTodayDone.length}</div>${rvTodayDone.map(reviewCardHTML).join('')}`;
+    if(rvTodayDone.length)    groups += `<div class="rv-group-title" style="margin-top:8px">✓ Done · ${rvTodayDone.length}</div>${rvTodayDone.map(reviewCardHTML).join('')}`;
     area.innerHTML = `<div class="section"><div class="section-header"><div class="section-title">Review</div><span class="section-badge badge-amber">${pendingCount}</span></div>${filterBar}${groups||emptyHTML('No reviews today.')}</div>`;
   } else if(currentView==='marking'){
     const sorted = [...pendingMarking].sort((a,b)=>new Date(b.date)-new Date(a.date));
