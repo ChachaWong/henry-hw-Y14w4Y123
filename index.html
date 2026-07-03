@@ -1897,7 +1897,7 @@ function expandReviewHist(id,e){
 function showFullPage(title, body){
   let overlay=document.getElementById('fullPageOverlay');
   if(!overlay){ overlay=document.createElement('div'); overlay.id='fullPageOverlay'; overlay.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:100;overflow-y:auto;'; document.body.appendChild(overlay); }
-  overlay.innerHTML=`<div style="background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10"><span style="font-size:15px;font-weight:700">${title}</span><button onclick="closeFullPage()" style="padding:7px 14px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">← Back</button></div><div style="max-width:860px;margin:0 auto;padding:22px 20px">${body}</div>`;
+  overlay.innerHTML=`<div style="background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10"><div style="max-width:860px;margin:0 auto;padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:15px;font-weight:700">${title}</span><button onclick="closeFullPage()" style="padding:7px 14px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">← Back</button></div></div><div style="max-width:860px;margin:0 auto;padding:22px 20px">${body}</div>`;
   overlay.style.display='block';
 }
 function closeFullPage(){ const o=document.getElementById('fullPageOverlay'); if(o) o.style.display='none'; renderContent(); }
@@ -1913,7 +1913,7 @@ function openMonthView(){
   // 这里直接操作overlay自建一个更宽的容器，让7列格子有足够空间显示得大气、不挤
   let overlay=document.getElementById('fullPageOverlay');
   if(!overlay){ overlay=document.createElement('div'); overlay.id='fullPageOverlay'; overlay.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:100;overflow-y:auto;'; document.body.appendChild(overlay); }
-  overlay.innerHTML=`<div style="background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10"><span style="font-size:15px;font-weight:700">📅 Calendar</span><button onclick="closeFullPage()" style="padding:7px 14px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">← Back</button></div><div style="max-width:1300px;margin:0 auto;padding:24px 28px"><div id="monthViewBody"></div></div>`;
+  overlay.innerHTML=`<div style="background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10"><div style="max-width:1300px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:15px;font-weight:700">📅 Calendar</span><button onclick="closeFullPage()" style="padding:7px 14px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">← Back</button></div></div><div style="max-width:1300px;margin:0 auto;padding:24px 28px"><div id="monthViewBody"></div></div>`;
   overlay.style.display='block';
   renderMonthGrid();
 }
@@ -4195,7 +4195,10 @@ window.addEventListener('beforeunload', () => {
     if(!r) return;
     const tst=RVS[feishuId];
     if(!tst||tst.state!=='running'||!tst.sessionStart) return;
-    localStorage.setItem('hw-rv-timing-elapsed-'+feishuId, String((r.totalSecs||0)+Math.floor((Date.now()-tst.sessionStart)/1000)));
+    // sessionStart 已经是 Date.now()-t.elapsed*1000（rvStart/rvContinue 统一约定），
+    // 所以 (Date.now()-sessionStart)/1000 已经是累计总时长，不能再加 r.totalSecs
+    const elapsed = Math.floor((Date.now() - tst.sessionStart) / 1000);
+    localStorage.setItem('hw-rv-timing-elapsed-'+feishuId, String(elapsed));
   });
 });
 </script>
