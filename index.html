@@ -940,14 +940,20 @@ function initReviewTSFromStatus(r){
   if(r.reviewStatus === 'In Progress'){
     const lsKey = 'hw-rv-timing-'+r.feishuId;
     if(localStorage.getItem(lsKey)){
+      // 这台设备刚在计时然后刷新 — 显示Paused，写飞书成功后才删除key（防止写失败后第二次刷新丢失状态）
       const savedElapsed = parseInt(localStorage.getItem('hw-rv-timing-elapsed-'+r.feishuId)) || r.totalSecs || 0;
-      localStorage.removeItem(lsKey);
-      localStorage.removeItem('hw-rv-timing-elapsed-'+r.feishuId);
       RVS[r.feishuId] = {state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:r.sessions||[]};
       r.totalSecs = savedElapsed;
-      feishuUpdateReview(r, 'Paused');
       feishuLogActionForReview(r, 'Pause');
+      feishuUpdateReview(r, 'Paused').then(res => {
+        if(res !== null){
+          localStorage.removeItem(lsKey);
+          localStorage.removeItem('hw-rv-timing-elapsed-'+r.feishuId);
+        }
+        // 写失败则保留key，下次刷新自动重试
+      });
     } else {
+      // 另一台设备在计时 — 只读显示
       RVS[r.feishuId] = {state:'remote', elapsed:r.totalSecs||0, sessionStart:null, interval:null, sessions:r.sessions||[]};
     }
   } else {
@@ -963,13 +969,19 @@ function initTaskTSFromStatus(t){
   if(t._rawStatus === 'In Progress'){
     const lsKey = 'hw-timing-'+t.feishuId;
     if(localStorage.getItem(lsKey)){
+      // 这台设备刚在计时然后刷新 — 显示Paused，写飞书成功后才删除key（防止写失败后第二次刷新丢失状态）
       const savedElapsed = parseInt(localStorage.getItem('hw-timing-elapsed-'+t.feishuId)) || t.totalSecs || 0;
-      localStorage.removeItem(lsKey);
-      localStorage.removeItem('hw-timing-elapsed-'+t.feishuId);
       TS[t.id] = {state:'paused', elapsed:savedElapsed, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
-      feishuUpdateStatus(t, 'Paused', savedElapsed);
       feishuLogAction(t, 'Pause');
+      feishuUpdateStatus(t, 'Paused', savedElapsed).then(res => {
+        if(res !== null){
+          localStorage.removeItem(lsKey);
+          localStorage.removeItem('hw-timing-elapsed-'+t.feishuId);
+        }
+        // 写失败则保留key，下次刷新自动重试
+      });
     } else {
+      // 另一台设备在计时 — 只读显示
       TS[t.id] = {state:'remote', elapsed:t.totalSecs||0, sessionStart:null, interval:null, sessions:t.sessions||[], overtime:0};
     }
   } else {
@@ -1671,12 +1683,11 @@ function reviewSubHTML(r, prefix){
   const BIG_CIRC=314;
   const bigOffset=(BIG_CIRC-Math.min(tst.elapsed/3600,1)*BIG_CIRC).toFixed(1);
 
-  // ── 左栏：详情、统计、notes、save、delete ──
   const leftCol = `<div style="flex:1.2;min-width:0;padding:12px 14px;border-right:1px solid var(--border)">
     <div style="display:flex;gap:7px;align-items:flex-end;margin-bottom:8px">
       <div style="flex:1">
         <div style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px">Review Details</div>
-        <input type="text" id="${prefix}-name-${id}" value="${(r.name||'').replace(/"/g,'&quot;')}" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif">
+        <input type="text" id="${prefix}-name-${id}" value="${(r.name||''). replace(/"/g,'&quot;')}" style="width:100%;padding:6px 8px;border:1px solid var(--border2);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif">
       </div>
       <div style="width:60px;flex-shrink:0">
         <div style="font-size:10px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px">Pts</div>
@@ -1685,7 +1696,7 @@ function reviewSubHTML(r, prefix){
     </div>
     <div class="review-sub-title">
       <span>📌 Review &nbsp;<span style="font-size:11px;font-weight:400;color:${accColor}">${pct!==null?pct+'% accuracy':''}</span></span>
-      ${isDone?'<span class="review-done-badge">✓ Complete</span>':''}
+      ${isDone?'<span class="review-done-badge">✓ Complete</span>':''} 
     </div>
     ${totalWrong>0?`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -1695,11 +1706,11 @@ function reviewSubHTML(r, prefix){
     <div style="display:flex;gap:14px;align-items:center;margin-bottom:8px">
       <div><div style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Total Wrong</div><div style="font-size:14px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace">${totalWrong}</div></div>
       ${!isDone?`<div><div style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Reviewed Today</div><div style="display:flex;align-items:center;gap:4px"><input type="number" id="${prefix}-rcount-${id}" value="${reviewed}" min="0" max="${totalWrong}" style="width:52px;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;font-size:14px;font-family:'DM Mono',monospace;text-align:center" oninput="updateReviewProgress('${id}','${prefix}')"><span style="font-size:12px;color:var(--text-3)">/ ${totalWrong}</span></div></div>`:''}
-    </div>`:''}
+    </div>`:''} 
     <div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:8px">
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px">Notes / next steps</div>
-        <textarea id="${prefix}-notes-${id}" placeholder="e.g. Done Q1–Q3, next time start from Q4" rows="3" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:11px;font-family:'DM Sans',sans-serif;resize:none">${r.notes||''}</textarea>
+        <textarea id="${prefix}-notes-${id}" placeholder="e.g. Done Q1-Q3, next time start from Q4" rows="3" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:11px;font-family:'DM Sans',sans-serif;resize:none">${r.notes||''}</textarea>
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;padding-top:17px;flex-shrink:0">
         <button onclick="saveReviewDetails('${id}','${prefix}')" style="padding:6px 10px;background:var(--accent);color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">💾 Save</button>
@@ -1709,7 +1720,6 @@ function reviewSubHTML(r, prefix){
     ${r.sessions&&r.sessions.length?`<div><div class="sess-log-title" style="margin-bottom:4px">Session log</div>${r.sessions.map(s=>`<div class="sess-row"><span>${s.a}</span><span>${s.t}</span></div>`).join('')}</div>`:''}
   </div>`;
 
-  // ── 右栏：计时器（未完成）或完成摘要 ──
   const rightCol = !isDone ? `<div style="flex:1;min-width:0;padding:12px 10px">
     <div style="display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:8px;margin-bottom:8px">
       <button class="timer-mode-btn ${rmode==='stopwatch'?'active':''}" style="font-size:10px;padding:3px 7px" onclick="setReviewTimerMode('${id}','stopwatch','${prefix}',this)">⬆ Stopwatch</button>
@@ -1719,7 +1729,7 @@ function reviewSubHTML(r, prefix){
       <span style="font-size:10px;color:var(--text-3)">Target:</span>
       <input type="number" id="rv-cd-m-${id}" value="${Math.floor((reviewCountdownTarget[id]||600)/60)}" min="0" max="99" style="width:44px;padding:4px;border:1px solid var(--border2);border-radius:5px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
       <span style="font-size:10px;color:var(--text-3)">min</span>
-      <button onclick="setReviewCountdownTarget('${id}')" style="padding:3px 8px;background:var(--accent);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Set</button>
+      <button onclick="setReviewCountdownTarget('${id}')" style="padding:3px 8px;background:var(--accent);color:white;border:none;border-radius:5px;font-size:10px;font-weight:600;cursor:pointer">Set</button>
     </div>`:''}
     <div style="display:flex;gap:10px;align-items:center">
       <div style="flex:1;min-width:0">
@@ -4157,8 +4167,7 @@ renderSubjectPicker('ac-type-picker','acType','classes');
 renderSubjectPicker('ar-subject-picker','arSubject','reviews');
 setInterval(autoCompleteOverdueClasses, 60*1000);
 
-// ── 刷新时同步存 elapsed 到 localStorage（同步操作，可靠）
-// 页面重载后 initTaskTSFromStatus / initReviewTSFromStatus 读取这个值，用正常 async API 写飞书
+// ── 刷新时同步存 elapsed 到 localStorage（不删 timing key，等飞书写成功后才删）
 window.addEventListener('beforeunload', () => {
   Object.keys(localStorage).filter(k=>k.startsWith('hw-timing-')&&!k.includes('-elapsed-')).forEach(key=>{
     const feishuId=key.replace('hw-timing-','');
