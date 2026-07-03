@@ -3006,7 +3006,12 @@ async function addReview(){
 function openRecurringModal(){ renderRecurringList(); openModal('recurringModal'); }
 function renderRecurringList(){
   const list=document.getElementById('recurringList');
-  const visibleRecurring = RECURRING.filter(r=>!r.deleted);
+  const todayStr = fmtISO(today);
+  const visibleRecurring = RECURRING.filter(r =>
+    !r.deleted &&
+    r.recurStatus !== 'Ended' &&
+    !(r.endDate && r.endDate < todayStr)
+  );
   if(!visibleRecurring.length){ list.innerHTML='<div class="empty">No recurring rules yet.</div>'; return; }
   list.innerHTML=visibleRecurring.map(r=>{
     const freqLabel=r.freq==='daily'?'Daily':r.freq==='weekly'?`Weekly · ${r.days.join(', ')}`:r.freq==='monthly'?`Monthly · day ${r.days.join(',')}`:r.freq;
@@ -4080,6 +4085,7 @@ function feishuRecordToRecurring(rec){
     startDate: toISO(f['Recur Start']),
     endDate: toISO(f['Recur End']),
     active: f['Status'] === 'Active',
+    recurStatus: f['Status'] || 'Active', // 'Active' | 'Paused' | 'Ended'
     statusHistory: f['Status History'] || '',
     skipDates: [],
     estSecs: f['Estimate'] ? Number(f['Estimate'])*60 : null,
@@ -4142,6 +4148,17 @@ async function loadAllDataFromFeishu(){
     TASKS = loadedTasks;
     RECURRING = loadedRecurring;
     REVIEWS = loadedReviews;
+
+    // 自动结束已过期的 Recurring 规则（endDate < 今天 且状态不是 Ended）
+    // 写入飞书 Status='Ended'，下次加载后自然从 manage 列表消失
+    const todayStr2 = fmtISO(today);
+    RECURRING.forEach(r => {
+      if(!r.deleted && r.recurStatus !== 'Ended' && r.endDate && r.endDate < todayStr2){
+        r.recurStatus = 'Ended';
+        r.active = false;
+        feishuUpdateRecurring(r, 'Ended', false);
+      }
+    });
     // 注意: 这里不再调用generateRecurring(true)批量检查所有Recurring规则——
     // 之前的做法是"每次刷新页面都重新判断今天该不该生成"，但这样存在竞态窗口：如果短时间内
     // 多次刷新(或多个设备分别刷新)，第一次写入飞书还没真正落库完成，第二次刷新查询飞书时可能
