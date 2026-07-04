@@ -304,7 +304,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
   <div id="dateDetailPanel"></div>
   <div class="stats-row">
-    <div class="stat-card" id="sc-today"   onclick="setView('today')"><div class="stat-label">Today</div><div class="stat-value sv-blue" id="sTd">0</div></div>
+    <div class="stat-card" id="sc-today" onclick="setView('today')"><div class="stat-label">Today</div><div style="display:flex;align-items:center;gap:10px"><div class="stat-value sv-blue" id="sTd">0</div><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="todayProgressBar" style="height:100%;border-radius:3px;width:0%;transition:width 0.5s,background 0.5s"></div></div></div></div>
     <div class="stat-card" id="sc-overdue"  onclick="setView('overdue')"><div class="stat-label">Overdue</div><div class="stat-value sv-red" id="sOv">0</div></div>
     <div class="stat-card" id="sc-review"   onclick="setView('review')"><div class="stat-label">Review</div><div class="stat-value sv-amber" id="sRv">0</div></div>
     <div class="stat-card" id="sc-done"     onclick="setView('done')"><div class="stat-label">Done Today</div><div class="stat-value sv-green" id="sDn">0</div></div>
@@ -1230,7 +1230,22 @@ function renderContent(){
   const allDoneReviews2 = REVIEWS.filter(r=>r.completedAt&&fmtISO(new Date(r.completedAt))===todayStr);
   const totalDoneCount = allDoneTasks2.length + allDoneReviews2.length;
 
-  document.getElementById('sTd').textContent = todayPending.length;
+  // Today 徽章 + 进度条（包含 review）
+  const todayTotalCount  = todayAll.length + reviewTodayAll.length;
+  const todayDoneCount2  = todayDone.length + reviewTodayAll.filter(r=>r.done).length;
+  const todayPendCount   = todayPending.length + reviewToday.length;
+  const todayProgress    = todayTotalCount > 0 ? todayDoneCount2 / todayTotalCount : 0;
+  const barColor = todayProgress >= 1 ? 'var(--green)' : todayProgress >= 0.6 ? 'var(--amber)' : 'var(--red)';
+  const sTdEl = document.getElementById('sTd');
+  if(sTdEl){
+    if(todayTotalCount > 0 && todayProgress === 1){
+      sTdEl.textContent = '✓'; sTdEl.className = 'stat-value sv-green';
+    } else {
+      sTdEl.textContent = todayPendCount; sTdEl.className = 'stat-value sv-blue';
+    }
+  }
+  const bar = document.getElementById('todayProgressBar');
+  if(bar){ bar.style.width = (todayProgress*100).toFixed(0)+'%'; bar.style.background = barColor; }
   document.getElementById('sOv').textContent = overdue.length + reviewOverdue.length;
   document.getElementById('sDn').textContent = totalDoneCount;
   document.getElementById('sRv').textContent = reviewPend.length; // 未完成 review 总数（overdue + 今天）
