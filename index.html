@@ -935,7 +935,7 @@ function getReviewTS(id){ if(!RVS[id]) RVS[id]={state:'idle',elapsed:0,sessionSt
 // 'In Progress'这里映射成'paused'而不是'running'：因为刚从飞书加载时不知道它实际开始的时间点，
 // 没法精确续算已用时长，直接当成running会让计时器从elapsed=0重新跳秒，造成时长统计错误。
 // 映射成paused后，按钮会显示"▶ Continue"，用户点击Continue才真正开始计时，语义上更准确也更安全。
-const REVIEW_STATUS_TO_STATE = { 'Not Started':'idle', 'In Progress':'paused', 'Paused':'paused', 'Stopped':'stopped', 'Done':'idle' };
+const REVIEW_STATUS_TO_STATE = { 'Not Started':'idle', 'In Progress':'paused', 'Paused':'paused', 'Done':'idle' };
 function initReviewTSFromStatus(r){
   if(RVS[r.feishuId]) return;
   if(r.reviewStatus === 'In Progress'){
@@ -963,7 +963,7 @@ function initReviewTSFromStatus(r){
   }
 }
 
-const TASK_STATUS_TO_STATE = { 'Not Started':'idle', 'In Progress':'paused', 'Paused':'paused', 'Stopped':'stopped', 'Done':'idle' };
+const TASK_STATUS_TO_STATE = { 'Not Started':'idle', 'In Progress':'paused', 'Paused':'paused', 'Done':'idle' };
 function initTaskTSFromStatus(t){
   if(TS[t.id]) return;
   if(t.status==='done') return;
@@ -1429,7 +1429,7 @@ function taskHTML(t, showNoReviewBtn){
     // stopped是历史遗留状态(以后不会再产生新的，因为UI上已经没有Stop按钮了)，统一当作paused处理——
     // 飞书里如果还存在历史的Stopped记录，刷新页面读回来后这里会被当成paused对待，可以直接点Continue接着用，
     // 不会卡在一个UI上已经不存在对应入口的状态分支里。
-    const st = tst.state==='stopped' ? 'paused' : tst.state;
+    const st = tst.state;
     if(st==='idle'){
       right += `<button class="action-btn primary" onclick="tStart('${t.id}',event)">▶ Start</button>`;
     } else if(st==='remote'){
@@ -1524,7 +1524,7 @@ function classCardHTML(t){
 
 function expandedHTML(t){
   const isDone=t.status==='done', tst=ts(t.id);
-  const displayState = tst.state==='stopped' ? 'paused' : tst.state;
+  const displayState = tst.state;
 
   // ── 左栏：始终有的内容 ──
   const detailsRow = `<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
@@ -1656,7 +1656,7 @@ function reviewCardHTML(r){
       <div class="task-right">
         ${r.done?`${r.totalSecs?`<span class="task-duration">${durFmt(r.totalSecs)}</span>`:''}<span class="review-tag rt-done">✓ Done</span>`:(()=>{
           const tst=getReviewTS(r.feishuId);
-          const st = tst.state==='stopped' ? 'paused' : tst.state;
+          const st = tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
           if(st==='remote'){ let h=''; if(!exp){ h+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`; h+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`; } return h; }
           const labels={running:'● Recording', paused:'⏸ Paused'};
@@ -1685,7 +1685,7 @@ function reviewSubHTML(r, prefix){
   const progColor=progPct===100?'var(--green)':progPct>=50?'var(--amber)':'var(--red)';
   const id=r.feishuId;
   const tst=getReviewTS(id);
-  const displayState = tst.state==='stopped' ? 'paused' : tst.state;
+  const displayState = tst.state;
   const isDone=r.done;
   const pct=accPct(r.totalQ,r.wrongQ);
   const accColor=pct===null?'var(--text-3)':pct>=90?'var(--green)':pct>=70?'var(--amber)':'var(--red)';
@@ -1715,7 +1715,7 @@ function reviewSubHTML(r, prefix){
     </div>
     <div style="display:flex;gap:14px;align-items:center;margin-bottom:8px">
       <div><div style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Total Wrong</div><div style="font-size:14px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace">${totalWrong}</div></div>
-      ${!isDone?`<div><div style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Reviewed Today</div><div style="display:flex;align-items:center;gap:4px"><input type="number" id="${prefix}-rcount-${id}" value="${reviewed}" min="0" max="${totalWrong}" style="width:52px;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;font-size:14px;font-family:'DM Mono',monospace;text-align:center" oninput="updateReviewProgress('${id}','${prefix}')"><span style="font-size:12px;color:var(--text-3)">/ ${totalWrong}</span></div></div>`:''}
+      <div><div style="font-size:10px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;color:var(--text-3)">Reviewed</div><div style="display:flex;align-items:center;gap:4px"><input type="number" id="${prefix}-rcount-${id}" value="${reviewed}" min="0" max="${totalWrong}" style="width:52px;padding:4px 6px;border:1px solid var(--border2);border-radius:6px;font-size:14px;font-family:'DM Mono',monospace;text-align:center" oninput="updateReviewProgress('${id}','${prefix}')"><span style="font-size:12px;color:var(--text-3)">/ ${totalWrong}</span></div></div>
     </div>`:''} 
     <div style="display:flex;gap:7px;align-items:flex-start;margin-bottom:8px">
       <div style="flex:1;min-width:0">
@@ -1886,7 +1886,7 @@ function reviewPageCardHTML(r){
       <div class="task-right">
         ${r.done?`${r.totalSecs?`<span class="task-duration">${durFmt(r.totalSecs)}</span>`:''}<span class="review-tag rt-done">✓ Done</span>`:(()=>{
           const tst=getReviewTS(r.feishuId);
-          const st = tst.state==='stopped' ? 'paused' : tst.state;
+          const st = tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
           if(st==='remote'){ let h=''; if(!exp){ h+=`<span style="font-size:11px;font-weight:600;color:var(--accent)">● In Progress</span>`; h+=`<span class="mini-timer-display">${fmtSecs(tst.elapsed)}</span>`; } return h; }
           const labels={running:'● Recording', paused:'⏸ Paused'};
@@ -2057,9 +2057,8 @@ function confirmReviewDone(){
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   const rvPoints=parseInt(document.getElementById('rv-done-points')?.value)||0;
   if(tst.elapsed>0){
-    // tst.elapsed 已经是包含所有历次 pause/continue 的累计值（rvPause 时已同步写入 r.totalSecs），
-    // 直接赋值而不是累加，否则 r.totalSecs 会被计算两次导致翻倍。
-    r.totalSecs=tst.elapsed;
+    // 这一段还没结算过，加进r.totalSecs(跟之前Stop时的写法一致：累加，不是覆盖)
+    r.totalSecs=tst.elapsed; // tst.elapsed 已是累计值，直接赋值
     if(!r.sessions) r.sessions=[];
     r.sessions.push({a:'Done',t:'Today '+now});
   } else if(!r.totalSecs && totalSecs>0){
@@ -2077,6 +2076,7 @@ function confirmReviewDone(){
   const notesEl=document.getElementById('rv2-notes-'+pendingReviewDoneId)||document.getElementById('rv-notes-'+pendingReviewDoneId)||document.getElementById('rvh-notes-'+pendingReviewDoneId);
   if(notesEl) r.notes=notesEl.value||'';
   if(r.feishuId) localStorage.removeItem('hw-rv-timing-'+r.feishuId);
+  feishuLogActionForReview(r, 'Done');
   feishuUpdateReview(r, 'Done').then(()=>showSyncToast('✓ Review saved to Feishu'));
   playTickSound(true);
   closeModal('reviewDoneModal');
@@ -2245,45 +2245,14 @@ function rvContinue(id,e){
   const r=REVIEWS.find(rv=>rv.feishuId===id);
   if(r){ if(r.feishuId) localStorage.setItem('hw-rv-timing-'+r.feishuId,'1'); feishuLogActionForReview(r,'Continue'); feishuUpdateReview(r,'In Progress'); }
 }
-function rvFinish(id){
-  const t=getReviewTS(id); clearInterval(t.interval); t.state='stopped';
-  const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-  t.sessions.push({a:'Stop',t:'Today '+now});
-  const r=REVIEWS.find(rv=>rv.feishuId===id);
-  if(r){
-    r.totalSecs=(r.totalSecs||0)+t.elapsed;
-    if(!r.sessions) r.sessions=[];
-    r.sessions.push({a:'Session '+(r.sessions.length+1),t:'Today '+now+' · '+durFmt(t.elapsed)});
-    feishuLogActionForReview(r,'Stop');
-    feishuUpdateReview(r,'Stop');
-  }
-  t.elapsed=0; // 这段时长已经永久结算进r.totalSecs了，本地计时器清零，避免下次Continue/Start时被重复累加进去
-  rvUpdateCtrl(id,t);
-}
+// ── rvFinish: 已废弃 Stop，直接转 Pause 语义 ──
+function rvFinish(id){ rvPause(id); }
 // 从stopped状态恢复继续计时(按钮显示"Continue"，但跟rvContinue不同：rvContinue是从paused恢复，
 // 那段时长还没结算，要接着累加；这里是从stopped恢复，上一段时长已经在rvFinish里结算过了，
 // 必须重新从0开始计这一段新的时长，否则旧时长会被本地计时器带着，下次Stop时重复加进r.totalSecs)
-function rvResumeFromStop(id){
-  const t=getReviewTS(id);
-  t.elapsed=0; t.alerted=false;
-  rvStart(id);
-}
-function fmtReviewCountdown(id){
-  const tst=getReviewTS(id), mode=reviewTimerMode[id]||'stopwatch';
-  if(mode!=='countdown') return fmtSecs(tst.elapsed);
-  const target=reviewCountdownTarget[id]||600;
-  const remaining=Math.max(target-tst.elapsed,0);
-  if(tst.elapsed>=target) return '+'+fmtSecs(tst.elapsed-target);
-  return fmtSecs(remaining);
-}
-function rvTickUI(id,t){
-  const clk=document.getElementById('rv-clk-'+id), ring=document.getElementById('rv-ring-'+id);
-  const miniClk=document.getElementById('rv-mini-clk-'+id); // 折叠卡片上的迷你计时数字
-  const rmode=reviewTimerMode[id]||'stopwatch';
-  if(clk) clk.textContent = rmode==='countdown' ? fmtReviewCountdown(id) : fmtSecs(t.elapsed);
-  if(miniClk) miniClk.textContent = fmtSecs(t.elapsed); // 折叠卡片统一显示正计时(不需要倒计时细节，保持简洁)
-  if(ring){ ring.style.strokeDashoffset=(314-Math.min(t.elapsed/3600,1)*314).toFixed(1); ring.className='c-prog '+t.state; }
-}
+// ── rvResumeFromStop: 已废弃，等同于 rvContinue ──
+function rvResumeFromStop(id){ rvContinue(id); }
+
 function rvUpdateCtrl(id,t){
   const br=document.getElementById('rv-btnrow-'+id);
   const miniBr=document.getElementById('rv-mini-btnrow-'+id);
@@ -2421,23 +2390,8 @@ function tContinue(id,e){
   updateCtrl(id,t); refreshSessLog(id,t);
 }
 
-// ── tFinish: ⏹ Stop（中途停止，不标记完成）──
-function tFinish(id,e){
-  if(e) e.stopPropagation();
-  const t=ts(id); clearInterval(t.interval); t.state='stopped';
-  const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-  t.sessions.push({a:'Finish',t:'Today '+now});
-
-  // ── 飞书：Status → Stopped + 累计专注时间；计时记录表写一行 Stop ──
-  const task=TASKS.find(tk=>tk.id===id);
-  if(task){
-    task.totalSecs=t.elapsed;
-    feishuUpdateStatus(task,'Stopped',t.elapsed);
-    feishuLogAction(task,'Stop');
-  }
-
-  updateCtrl(id,t); refreshSessLog(id,t);
-}
+// ── tFinish: 已废弃 Stop，直接转 Pause 语义 ──
+function tFinish(id,e){ tPause(id,e); }
 
 function tickUI(id,t){
   const clk=document.getElementById('clk-'+id), ring=document.getElementById('ring-'+id);
@@ -2448,7 +2402,7 @@ function tickUI(id,t){
   if(ring){
     const target=mode==='countdown'?(taskCountdownTarget[id]||1500):mode==='pomodoro'?(taskPomoState[id]?.phase==='focus'?POMO_FOCUS:POMO_BREAK):3600;
     ring.style.strokeDashoffset=(314-Math.min(t.elapsed/target,1)*314).toFixed(1);
-    ring.className='c-prog '+(t.overtime>0?'stopped':t.state);
+    ring.className='c-prog '+(t.overtime>0?'running':t.state);
   }
 }
 function updateCtrl(id,t){
@@ -3954,6 +3908,7 @@ async function feishuUpdateReview(r, status){
   if(r.totalSecs != null && r.totalSecs >= 0) fields['Review Time'] = r.totalSecs;
   if(r.notes)     fields['Review Notes'] = r.notes;
   if(r.points)    fields['Review Reward Points'] = r.points;
+  if(r.reviewedCount != null) fields['Reviewed Count'] = r.reviewedCount;
   const res = await apiCall(`/reviews/${r.feishuId}`, 'PATCH', fields);
   console.log('feishuUpdateReview result:', JSON.stringify(res));
   return res;
@@ -3978,7 +3933,7 @@ function showSyncToast(msg, isError){
 function feishuRecordToTask(rec){
   const f = rec.fields || {};
   const dateVal = f[F_TASK.date] ? new Date(f[F_TASK.date]) : new Date();
-  const statusMap = { 'Not Started':'pending', 'In Progress':'pending', 'Paused':'pending', 'Stopped':'pending', 'Done':'done' };
+  const statusMap = { 'Not Started':'pending', 'In Progress':'pending', 'Paused':'pending', 'Done':'done' };
   // Number()转换很关键：飞书API某些情况下数字字段可能以字符串形式返回(比如"0")，
   // 如果不转换，字符串"0"在JS里是truthy(!"0"===false)，会绕过accPct的判空逻辑，
   // 进入除法运算产生NaN(0/0)而不是被正确识别成"没有批改数据"返回null —— 这正是页面上显示"NaN%"的根因。
@@ -4029,7 +3984,7 @@ function feishuRecordToTask(rec){
 // 把飞书Review表的一条记录,解析成前端用的review对象
 function feishuRecordToReview(rec){
   const f = rec.fields || {};
-  const statusMap = { 'Not Started':false, 'In Progress':false, 'Paused':false, 'Stopped':false, 'Done':true };
+  const statusMap = { 'Not Started':false, 'In Progress':false, 'Paused':false, 'Done':true };
   // Subject改成多选后飞书返回数组；兼容老数据(单选时是字符串)
   const subjectsArr = Array.isArray(f['Subject']) ? f['Subject'] : (f['Subject'] ? [f['Subject']] : ['Other']);
   return {
