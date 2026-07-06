@@ -359,7 +359,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
   <div class="modal-actions">
     <button class="mbtn-cancel" onclick="closeModal('addTaskModal')">Cancel</button>
-    <button class="mbtn-save"   onclick="addTask()">Add Task</button>
+    <button class="mbtn-save" id="btn-add-task" onclick="addTask()">Add Task</button>
   </div>
 </div></div>
 
@@ -411,7 +411,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   </div>
   <div class="modal-actions">
     <button class="mbtn-cancel" onclick="closeModal('addClassModal')">Cancel</button>
-    <button class="mbtn-save"   onclick="addClass()">Add Class</button>
+    <button class="mbtn-save" id="btn-add-class" onclick="addClass()">Add Class</button>
   </div>
 </div></div>
 
@@ -465,7 +465,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div class="field"><label>Wrong Answers (optional)</label><input type="number" id="ar-wrong" placeholder="" min="0"></div>
   <div class="modal-actions">
     <button class="mbtn-cancel" onclick="closeModal('addReviewModal')">Cancel</button>
-    <button class="mbtn-save"   onclick="addReview()">Add Review</button>
+    <button class="mbtn-save" id="btn-add-review" onclick="addReview()">Add Review</button>
   </div>
 </div></div>
 <div class="modal-overlay" id="recurringModal"><div class="modal" style="max-width:520px">
@@ -2859,6 +2859,9 @@ function resolvePastDateChoice(wasCompleted, minutes, completedAtMs){
 }
 
 async function addTask(){
+  const _btnT=document.getElementById('btn-add-task');
+  if(_btnT){ if(_btnT.disabled) return; _btnT.disabled=true; _btnT.textContent='Adding…'; }
+  try {
   const dateVal=document.getElementById('at-date').value;
   const details=document.getElementById('at-details').value.trim();
   if(!dateVal||!atSubject.length||!details){ alert('Please fill in date, subject, and task details.'); return; }
@@ -2917,9 +2920,13 @@ async function addTask(){
   document.getElementById('at-est-custom').style.display='none';
   document.getElementById('at-points').value='';
   renderContent();
+  } finally { const b=document.getElementById('btn-add-task'); if(b){b.disabled=false;b.textContent='Add Task';} }
 }
 
 async function addClass(){
+  const _btnC=document.getElementById('btn-add-class');
+  if(_btnC){ if(_btnC.disabled) return; _btnC.disabled=true; _btnC.textContent='Adding…'; }
+  try {
   const types=acType, startTime=document.getElementById('ac-start').value;
   if(!types||!types.length||!startTime){ alert('Please select at least one class type and start time.'); return; }
   const subjectLabel=types.join('/'); // 兼容字段：多个学科用'/'拼接成单字符串，给所有原本按单一subject处理的逻辑(显示/筛选)使用
@@ -2989,10 +2996,14 @@ async function addClass(){
   document.getElementById('ac-oneoff-date').style.display='block';
   ['ac-name','ac-start','ac-end','ac-location','ac-points','ac-price-per','ac-price-total','ac-total-lessons','ac-class-notes'].forEach(id=>{document.getElementById(id).value='';});
   renderContent();
+  } finally { const b=document.getElementById('btn-add-class'); if(b){b.disabled=false;b.textContent='Add Class';} }
 }
 
 // ── ADD REVIEW (独立创建，不需要先有Task) ──
 async function addReview(){
+  const _btnR=document.getElementById('btn-add-review');
+  if(_btnR){ if(_btnR.disabled) return; _btnR.disabled=true; _btnR.textContent='Adding…'; }
+  try {
   const dateVal=document.getElementById('ar-date').value;
   const details=document.getElementById('ar-details').value.trim();
   if(!dateVal||!arSubject.length||!details){ alert('Please fill in date, subject, and what needs review.'); return; }
@@ -3014,6 +3025,7 @@ async function addReview(){
   renderSubjectPicker('ar-subject-picker','arSubject','reviews');
   document.querySelectorAll('#addReviewModal .pick-btn').forEach(b=>b.classList.remove('sel'));
   renderContent();
+  } finally { const b=document.getElementById('btn-add-review'); if(b){b.disabled=false;b.textContent='Add Review';} }
 }
 // ── RECURRING MANAGE ──
 function openRecurringModal(){ renderRecurringList(); openModal('recurringModal'); }
