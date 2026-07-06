@@ -2057,8 +2057,9 @@ function confirmReviewDone(){
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   const rvPoints=parseInt(document.getElementById('rv-done-points')?.value)||0;
   if(tst.elapsed>0){
-    // 这一段还没结算过，加进r.totalSecs(跟之前Stop时的写法一致：累加，不是覆盖)
-    r.totalSecs=(r.totalSecs||0)+tst.elapsed;
+    // tst.elapsed 已经是包含所有历次 pause/continue 的累计值（rvPause 时已同步写入 r.totalSecs），
+    // 直接赋值而不是累加，否则 r.totalSecs 会被计算两次导致翻倍。
+    r.totalSecs=tst.elapsed;
     if(!r.sessions) r.sessions=[];
     r.sessions.push({a:'Done',t:'Today '+now});
   } else if(!r.totalSecs && totalSecs>0){
