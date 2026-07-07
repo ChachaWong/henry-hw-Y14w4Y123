@@ -2025,9 +2025,9 @@ function tickReview(id,e){
   const rvCorrected=document.getElementById('rv-done-corrected');
   if(rvTotalWrong) rvTotalWrong.value=wrongVal!=null?wrongVal:'';
   if(rvCorrected) rvCorrected.value=(r.reviewedCount>0)?r.reviewedCount:'';
-  // 已经记录的总时长 = 之前结算过的r.totalSecs(比如Stop过之后,飞书Focus Time里已经存了的) + 这次还没结算的tst.elapsed(running/paused状态下正在计的)。
-  // 之前这里只看tst.elapsed一个字段，但Stop会把它清零(时长已经转存进r.totalSecs了)，导致"已经Stop过、确实有时长"的review被误判成"没有任何记录"又弹窗要求手动输入。
-  const knownSecs = (r.totalSecs||0) + (tst.elapsed||0);
+  // tst.elapsed 已是累计值（rvPause 同步写入 r.totalSecs），不能再加 r.totalSecs，否则翻倍。
+  // 刷新后 tst.elapsed 从 initReviewTSFromStatus 读回，也等于 r.totalSecs，同样不需要相加。
+  const knownSecs = tst.elapsed || r.totalSecs || 0;
   if(knownSecs>0){
     document.getElementById('rvDoneTimeDisplay').textContent=durFmt(knownSecs)||'—';
     document.getElementById('rvDoneTimeSummary').style.display='block';
@@ -2043,9 +2043,8 @@ function tickReview(id,e){
 function confirmReviewDone(){
   const r=REVIEWS.find(rv=>rv.feishuId===pendingReviewDoneId); if(!r) return;
   const tst=getReviewTS(pendingReviewDoneId);
-  // 同样的道理：已经结算过的r.totalSecs + 这次还没结算的tst.elapsed，才是目前为止的真实总时长。
-  // 只有当这两者都是0(这个review从来没计过时、也没有任何已结算记录)，才需要用户手动输入。
-  const knownSecs = (r.totalSecs||0) + (tst.elapsed||0);
+  // tst.elapsed 已是累计值，直接使用，不与 r.totalSecs 相加（否则翻倍）。
+  const knownSecs = tst.elapsed || r.totalSecs || 0;
   let totalSecs = knownSecs;
   if(!totalSecs){
     const m=parseInt(document.getElementById('rv-done-m')?.value)||0;
@@ -2245,12 +2244,10 @@ function rvContinue(id,e){
   const r=REVIEWS.find(rv=>rv.feishuId===id);
   if(r){ if(r.feishuId) localStorage.setItem('hw-rv-timing-'+r.feishuId,'1'); feishuLogActionForReview(r,'Continue'); feishuUpdateReview(r,'In Progress'); }
 }
-// ── rvFinish: 已废弃 Stop，直接转 Pause 语义 ──
 function rvFinish(id){ rvPause(id); }
 // 从stopped状态恢复继续计时(按钮显示"Continue"，但跟rvContinue不同：rvContinue是从paused恢复，
 // 那段时长还没结算，要接着累加；这里是从stopped恢复，上一段时长已经在rvFinish里结算过了，
 // 必须重新从0开始计这一段新的时长，否则旧时长会被本地计时器带着，下次Stop时重复加进r.totalSecs)
-// ── rvResumeFromStop: 已废弃，等同于 rvContinue ──
 function rvResumeFromStop(id){ rvContinue(id); }
 
 function rvUpdateCtrl(id,t){
@@ -2390,7 +2387,6 @@ function tContinue(id,e){
   updateCtrl(id,t); refreshSessLog(id,t);
 }
 
-// ── tFinish: 已废弃 Stop，直接转 Pause 语义 ──
 function tFinish(id,e){ tPause(id,e); }
 
 function tickUI(id,t){
