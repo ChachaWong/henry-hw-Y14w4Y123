@@ -2250,6 +2250,24 @@ function rvFinish(id){ rvPause(id); }
 // 必须重新从0开始计这一段新的时长，否则旧时长会被本地计时器带着，下次Stop时重复加进r.totalSecs)
 function rvResumeFromStop(id){ rvContinue(id); }
 
+function rvTickUI(id,t){
+  // 展开面板里的大钟
+  const clk  = document.getElementById('rv-clk-'+id);
+  const ring = document.getElementById('rv-ring-'+id);
+  const lbl  = document.getElementById('rv-clklbl-'+id);
+  // 折叠卡片外面的迷你计时数字
+  const miniClk = document.getElementById('rv-mini-clk-'+id);
+  const rmode = reviewTimerMode[id]||'stopwatch';
+  if(clk)     clk.textContent = rmode==='countdown' ? fmtReviewCountdown(id) : fmtSecs(t.elapsed);
+  if(miniClk) miniClk.textContent = fmtSecs(t.elapsed);
+  if(lbl)     lbl.textContent = t.state==='running' ? 'focus' : t.state;
+  if(ring){
+    const target = rmode==='countdown' ? (reviewCountdownTarget[id]||600) : 3600;
+    ring.style.strokeDashoffset = (314-Math.min(t.elapsed/target,1)*314).toFixed(1);
+    ring.className = 'c-prog '+t.state;
+  }
+}
+
 function rvUpdateCtrl(id,t){
   const br=document.getElementById('rv-btnrow-'+id);
   const miniBr=document.getElementById('rv-mini-btnrow-'+id);
