@@ -314,7 +314,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <!-- ADD TASK MODAL -->
 <div class="modal-overlay" id="addTaskModal"><div class="modal">
   <div class="modal-title">📝 Add Task</div>
-  <div class="field"><label>Date</label><input type="date" id="at-date"></div>
+  <div class="field-row"><div class="field"><label>Date</label><input type="date" id="at-date"></div><div class="field"><label>Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><input type="date" id="at-due"></div></div>
   <div class="field"><label>Subject <span style="font-weight:400;color:var(--text-3)">(select one or more)</span></label>
     <div class="picker" id="at-subject-picker"><span style="font-size:12px;color:var(--text-3)">Loading…</span></div>
   </div>
@@ -456,7 +456,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 </div></div>
 <div class="modal-overlay" id="addReviewModal"><div class="modal">
   <div class="modal-title">📌 Add Review</div>
-  <div class="field"><label>Date (of the original work)</label><input type="date" id="ar-date"></div>
+  <div class="field-row"><div class="field"><label>Date (of the original work)</label><input type="date" id="ar-date"></div><div class="field"><label>Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></label><input type="date" id="ar-due"></div></div>
   <div class="field"><label>Subject <span style="font-weight:400;color:var(--text-3)">(select one or more)</span></label>
     <div class="picker" id="ar-subject-picker"><span style="font-size:12px;color:var(--text-3)">Loading…</span></div>
   </div>
@@ -779,7 +779,9 @@ function getDailyStats(dateStr){
   const totalCount = items.length;
   const withMarking = items.filter(t=>t.marking&&t.marking.saved&&t.marking.totalQ);
   const accSum = withMarking.reduce((a,t)=>a+accPct(t.marking.totalQ,t.marking.wrongQ),0);
-  const totalSecs = items.filter(t=>t.status==='done').reduce((a,t)=>a+(t.totalSecs||0),0);
+  const getDay=item=>{try{return JSON.parse(item.dailyLog||'{}')[dateStr]||0;}catch(e){return 0;}};
+  const logTime=TASKS.filter(t=>!isHidden(t)).reduce((a,t)=>a+getDay(t),0)+REVIEWS.filter(r=>!r.deleted).reduce((a,r)=>a+getDay(r),0);
+  const totalSecs=logTime||items.filter(t=>t.status==='done').reduce((a,t)=>a+(t.totalSecs||0),0);
   return { completedCount, totalCount, accSum, accCount: withMarking.length, totalSecs };
 }
 
@@ -1214,9 +1216,11 @@ function renderContent(){
   // 这样不管何时刷新页面: 今天完成的依然留在原分组划线展示; 一旦日期翻到第二天,"今天才完成的"条件天然不再满足,自动从新一天的列表里消失
   const isVisibleToday = t => t.status!=='done' || (t.completedAt && fmtISO(new Date(t.completedAt))===todayStr);
   const isReviewVisibleToday = r => !r.done || (r.completedAt && fmtISO(new Date(r.completedAt))===todayStr);
-  const overdueAll = TASKS.filter(t=>fmtISO(t.date)<todayStr&&!isHidden(t)&&isVisibleToday(t));
+  const hasDueNotExpired = t => t.dueDate && t.dueDate >= todayStr;
+  const overdueAll = TASKS.filter(t=>fmtISO(t.date)<todayStr&&!isHidden(t)&&isVisibleToday(t)&&!hasDueNotExpired(t));
   const overdue     = overdueAll.filter(t=>t.status!=='done');  // 未完成的数量，用于顶部数字
-  const todayAll   = TASKS.filter(t=>fmtISO(t.date)===todayStr&&!isHidden(t)&&isVisibleToday(t));
+  const pastDueToday = TASKS.filter(t=>fmtISO(t.date)<todayStr&&!isHidden(t)&&isVisibleToday(t)&&hasDueNotExpired(t));
+  const todayAll   = [...TASKS.filter(t=>fmtISO(t.date)===todayStr&&!isHidden(t)&&isVisibleToday(t)), ...pastDueToday];
   const todayPending = todayAll.filter(t=>t.status!=='done');
   const todayDone  = todayAll.filter(t=>t.status==='done');
   const reviewOverdueAll = REVIEWS.filter(r=>fmtISO(r.date)<todayStr&&isReviewVisibleToday(r));
@@ -1416,6 +1420,7 @@ function taskHTML(t, showNoReviewBtn){
   let right='';
   if(isDone){
     if(t.totalSecs) right+=`<span class="task-duration">${durFmt(t.totalSecs)}</span>`;
+    if(t.dueDate&&t.status!=='done'){const dl=Math.ceil((new Date(t.dueDate+' 23:59')-today)/86400000);const dc=dl<=0?'var(--red)':dl<=2?'var(--amber)':'var(--text-3)';right+=`<span style="font-size:10px;font-weight:600;color:${dc};white-space:nowrap">${dl<=0?'Due today':dl===1?'Due tmr':'Due '+t.dueDate}</span>`;}
     if(hasAccData) right+=accBadge(pct);
     // "No Review"按钮只在Pending Marking那个专门页面里显示(showNoReviewBtn===true时)，避免在日常浏览任务列表(今天/Overdue/Done)时不小心点到。
     // 其余地方只显示"Pending marking"文字提示，告诉你这条还没批改，但不给一个容易误触的按钮。
@@ -1527,6 +1532,7 @@ function expandedHTML(t){
   const displayState = tst.state;
 
   // ── 左栏：始终有的内容 ──
+  const dueDateRow = t.dueDate!==undefined ? `<div style="margin-bottom:6px"><div class="field-lbl">Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></div><input type="date" id="task-due-${t.id}" value="${t.dueDate||''}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif"></div>` : '';
   const detailsRow = `<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
     <div style="flex:1;min-width:0">
       <div class="field-lbl">Task Details</div>
@@ -1554,7 +1560,7 @@ function expandedHTML(t){
     : '';
 
   const leftCol = `<div style="flex:1.1;min-width:0;padding:10px 12px;border-right:1px solid var(--border)">
-    ${detailsRow}${notesRow}${actionsRow}${sessLogBlock}
+    ${dueDateRow}${detailsRow}${notesRow}${actionsRow}${sessLogBlock}
   </div>`;
 
   // ── 右栏：未完成=计时器，已完成=完成摘要+Marking ──
@@ -2075,6 +2081,7 @@ function confirmReviewDone(){
   const notesEl=document.getElementById('rv2-notes-'+pendingReviewDoneId)||document.getElementById('rv-notes-'+pendingReviewDoneId)||document.getElementById('rvh-notes-'+pendingReviewDoneId);
   if(notesEl) r.notes=notesEl.value||'';
   if(r.feishuId) localStorage.removeItem('hw-rv-timing-'+r.feishuId);
+  updateDailyLog(r, r.totalSecs);
   feishuLogActionForReview(r, 'Done');
   feishuUpdateReview(r, 'Done').then(()=>showSyncToast('✓ Review saved to Feishu'));
   playTickSound(true);
@@ -2229,7 +2236,8 @@ function rvPause(id,e){
   const r=REVIEWS.find(rv=>rv.feishuId===id);
   if(r){
     if(r.feishuId) localStorage.removeItem('hw-rv-timing-'+r.feishuId);
-    r.totalSecs = t.elapsed; // 累计到本次暂停的总时长，对齐 tPause 的做法
+    r.totalSecs = t.elapsed;
+    updateDailyLog(r, t.elapsed);
     feishuLogActionForReview(r,'Pause');
     feishuUpdateReview(r,'Paused');
   }
@@ -2357,6 +2365,16 @@ function tStart(id,e){
 }
 
 // ── tPause: ⏸ Pause ──
+function updateDailyLog(item, totalElapsed) {
+  const todayStr = fmtISO(today);
+  try {
+    const log = JSON.parse(item.dailyLog || '{}');
+    const otherDays = Object.entries(log).filter(([k])=>k!==todayStr).reduce((s,[,v])=>s+v,0);
+    log[todayStr] = Math.max(0, totalElapsed - otherDays);
+    item.dailyLog = JSON.stringify(log);
+  } catch(e) { item.dailyLog = JSON.stringify({[todayStr]: totalElapsed}); }
+}
+
 function tPause(id,e){
   if(e) e.stopPropagation();
   const t=ts(id); if(t.state!=='running') return;
@@ -2369,6 +2387,7 @@ function tPause(id,e){
   const task=TASKS.find(tk=>tk.id===id);
   if(task){
     if(task.feishuId) localStorage.removeItem('hw-timing-'+task.feishuId);
+    updateDailyLog(task, t.elapsed);
     feishuUpdateStatus(task,'Paused',t.elapsed);
     feishuLogAction(task,'Pause');
   }
@@ -2542,6 +2561,7 @@ function confirmDone(){
 
   // ── 飞书：Status → Finish + 最终专注时间 + Gap(预估-实际,正数=提前完成)；计时记录表写一行 Finish ──
   if(task.feishuId) localStorage.removeItem('hw-timing-'+task.feishuId);
+  updateDailyLog(task, tst.elapsed);
   feishuUpdateStatus(task,'Done',tst.elapsed).then(()=>showSyncToast('✓ Saved to Feishu'));
   feishuLogAction(task,'Done');
 
@@ -2652,7 +2672,8 @@ function saveTaskDetails(id){
 // ── 同步Task的名字/Notes/Points修改到飞书 ──
 async function feishuUpdateTaskDetails(task){
   if(!task.feishuId) return null;
-  const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', { [F_TASK.details]: task.name, 'Notes': task.notes || '', [F_TASK.points]: task.basePoints || 0 });
+  const duePatch=task.dueDate?{[F_TASK.dueDate]:new Date(task.dueDate+'T00:00:00').getTime()}:{[F_TASK.dueDate]:null};
+  const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', { [F_TASK.details]: task.name, 'Notes': task.notes || '', [F_TASK.points]: task.basePoints || 0, ...duePatch });
   console.log('feishuUpdateTaskDetails:', JSON.stringify(res));
   return res;
 }
@@ -2874,7 +2895,8 @@ async function addTask(){
     }
     const newTask={id:'T'+String(taskIdCounter++).padStart(3,'0'),type:'task',name:details,subject:subjectLabel,subjects:atSubject,date:new Date(dateVal+'T00:00:00'),status:initialStatus,completedAt:backfilledCompletedAt,estSecs,basePoints,totalSecs:backfilledSecs,timeUnknown:(initialStatus==='done'&&backfilledSecs==null),marking:null,sessions:[],review:null,recurId:null,feishuId:null};
     TASKS.push(newTask);
-    feishuCreateTask(newTask).then(res=>{
+    const dueVal=document.getElementById('at-due').value; if(dueVal) newTask.dueDate=dueVal;
+  feishuCreateTask(newTask).then(res=>{
       if(isFeishuCreateSuccess(res)) showSyncToast('✓ Saved to Feishu');
       else { console.error('addTask failed, Feishu response:', JSON.stringify(res)); TASKS=TASKS.filter(t=>t!==newTask); showSyncToast('⚠ Failed to save to Feishu — task removed, please retry', true); renderContent(); }
     });
@@ -2883,6 +2905,7 @@ async function addTask(){
   atSubject=[]; atEstMins=null; atRecur='none';
   document.getElementById('at-details').value='';
   renderSubjectPicker('at-subject-picker','atSubject','tasks');
+  document.getElementById('at-due').value='';
   document.querySelectorAll('#addTaskModal .pick-btn').forEach(b=>b.classList.remove('sel'));
   document.querySelector('#at-recur-picker .pick-btn').classList.add('sel');
   document.getElementById('at-recur-options').style.display='none';
@@ -2979,7 +3002,8 @@ async function addReview(){
   const subjectLabel=arSubject.join('/'); // 兼容字段：多个学科用'/'拼接，给单选逻辑(显示/筛选)用
   const total=parseInt(document.getElementById('ar-total').value)||null;
   const wrong=parseInt(document.getElementById('ar-wrong').value)||null;
-  feishuCreateReview({date:new Date(dateVal+'T00:00:00'), subject:subjectLabel, subjects:arSubject, name:details, totalQ:total, wrongQ:wrong, taskRecordId:null})
+  const arDue=document.getElementById('ar-due').value;
+  feishuCreateReview({date:new Date(dateVal+'T00:00:00'), subject:subjectLabel, subjects:arSubject, name:details, totalQ:total, wrongQ:wrong, taskRecordId:null, dueDate:arDue||null})
     .then(res=>{
       if(isFeishuCreateSuccess(res)) showSyncToast('✓ Review added');
       else { console.error('addReview failed, Feishu response:', JSON.stringify(res)); showSyncToast('⚠ Failed to save to Feishu — please retry', true); }
@@ -2988,6 +3012,7 @@ async function addReview(){
   closeModal('addReviewModal');
   arSubject=[];
   document.getElementById('ar-date').value=fmtISO(today);
+  document.getElementById('ar-due').value='';
   document.getElementById('ar-details').value='';
   document.getElementById('ar-total').value='';
   document.getElementById('ar-wrong').value='';
@@ -3225,10 +3250,14 @@ function getStatsForRange(startDate, endDate){
   const classDone = TASKS.filter(t=>t.type==='class' && t.status==='done' && !isHidden(t) && inRange(t.completedAt));
   const reviewDone = REVIEWS.filter(r=>r.done && !r.deleted && inRange(r.completedAt));
 
-  const taskSecs = taskDone.reduce((a,t)=>a+(t.totalSecs||0),0);
-  const classSecs = classDone.reduce((a,t)=>a+(t.totalSecs||0),0);
-  const reviewSecs = reviewDone.reduce((a,r)=>a+(r.totalSecs||0),0);
-  const totalSecs = taskSecs+classSecs+reviewSecs;
+  const sumLog=(item)=>{try{return Object.entries(JSON.parse(item.dailyLog||'{}')).filter(([d])=>(!startDate||d>=startDate)&&(!endDate||d<=endDate)).reduce((s,[,v])=>s+v,0);}catch(e){return 0;}};
+  const tskL=TASKS.filter(t=>t.type==='task'&&!isHidden(t)).reduce((a,t)=>a+sumLog(t),0);
+  const clsL=TASKS.filter(t=>t.type==='class'&&!isHidden(t)).reduce((a,t)=>a+sumLog(t),0);
+  const rvL=REVIEWS.filter(r=>!r.deleted).reduce((a,r)=>a+sumLog(r),0);
+  const taskSecs=tskL||taskDone.reduce((a,t)=>a+(t.totalSecs||0),0);
+  const classSecs=clsL||classDone.reduce((a,t)=>a+(t.totalSecs||0),0);
+  const reviewSecs=rvL||reviewDone.reduce((a,r)=>a+(r.totalSecs||0),0);
+  const totalSecs=taskSecs+classSecs+reviewSecs;
 
   // 正确率只看Task，不含Review(按要求) —— 算法仍是按题量加权，不是先各自算百分比再简单平均
   const withMarking = taskDone.filter(t=>t.marking&&t.marking.saved&&Number(t.marking.totalQ)>0);
@@ -3517,6 +3546,8 @@ const F_TASK = {
   estimate:   'Estimate',       // 数字，分钟
   points:     'Task Reward Points',
   needReview: 'Need Review',
+  dueDate:    'Due Date',
+  dailyLog:   'Daily Log',
 };
 
 // 计时记录表字段名（与飞书列名完全一致）
@@ -3569,7 +3600,8 @@ async function feishuCreateTask(task){
   };
   if(task.estSecs)    fields[F_TASK.estimate] = Math.round(task.estSecs / 60);
   if(task.basePoints) fields[F_TASK.points]   = task.basePoints;
-  if(task.totalSecs)  fields[F_TASK.focusTime] = task.totalSecs;  // 补录时如果填了用时,一起写入
+  if(task.totalSecs)  fields[F_TASK.focusTime] = task.totalSecs;
+  if(task.dueDate)    fields[F_TASK.dueDate]   = new Date(task.dueDate+'T00:00:00').getTime();
   if(task.completedAt) fields['Completed At'] = task.completedAt;  // 补录过去任务时选了"已完成"，把完成时间一起写入
   if(task.recurId){
     const rule = RECURRING.find(r=>r.id===task.recurId||r.feishuId===task.recurId);
@@ -3593,6 +3625,7 @@ async function feishuUpdateStatus(task, statusLabel, elapsedSecs){
   if(!task.feishuId) { console.log('feishuUpdateStatus skipped: no feishuId', task.name); return; }
   const fields = { [F_TASK.status]: statusLabel };
   if(elapsedSecs != null) fields[F_TASK.focusTime] = elapsedSecs;
+  if(task.dailyLog !== undefined) fields[F_TASK.dailyLog] = task.dailyLog;
   fields['Completed At'] = statusLabel === 'Done' ? Date.now() : null;
   if(statusLabel === 'Done'){
     fields['Gap'] = (task.estSecs && elapsedSecs!=null) ? Math.round((task.estSecs - elapsedSecs)/60) : null;  // 分钟,正数=提前完成,负数=超时
@@ -3875,7 +3908,7 @@ async function feishuSaveMarking(task){
 }
 
 // ── 7b. Need Review勾选后，创建一条Review表记录 ──
-async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ, taskRecordId}){
+async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ, taskRecordId, dueDate}){
   const pct = totalQ ? Math.round(((totalQ - (wrongQ||0)) / totalQ) * 100) : 0;
   const subjectsArr = subjects && subjects.length ? subjects : (subject ? subject.split('/').filter(Boolean) : []);
   const fields = {
@@ -3887,7 +3920,8 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
     'Accuracy':        pct,
     'Review Status':   'Not Started',
   };
-  if(taskRecordId) fields['Task Record ID'] = taskRecordId;  // 精确关联回对应的Task记录;独立添加的Review没有这个值
+  if(taskRecordId) fields['Task Record ID'] = taskRecordId;
+  if(dueDate)      fields['Due Date'] = new Date(dueDate+'T00:00:00').getTime();
   const res = await apiCall('/reviews', 'POST', fields);
   console.log('feishuCreateReview:', JSON.stringify(res));
   if(res?.data?.record?.record_id){
@@ -3912,7 +3946,10 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
       deleted: false,
       sessions: [],
       reviewedCount: 0,
+      dueDate: null,
+      dailyLog: '{}',
     });
+    apiCall(`/reviews/${res.data.record.record_id}`, 'PATCH', { 'Record ID': res.data.record.record_id });
   }
   return res;
 }
@@ -3928,6 +3965,7 @@ async function feishuUpdateReview(r, status){
   if(r.notes)     fields['Review Notes'] = r.notes;
   if(r.points)    fields['Review Reward Points'] = r.points;
   if(r.reviewedCount != null) fields['Reviewed Count'] = r.reviewedCount;
+  if(r.dailyLog !== undefined) fields['Daily Log'] = r.dailyLog;
   const res = await apiCall(`/reviews/${r.feishuId}`, 'PATCH', fields);
   console.log('feishuUpdateReview result:', JSON.stringify(res));
   return res;
@@ -3966,7 +4004,8 @@ function feishuRecordToTask(rec){
   let status = statusMap[f[F_TASK.status]] || 'pending';
   // 如果日期是过去、还没完成，标记为overdue，才能显示在Overdue栏
   const dateOnly = new Date(dateVal); dateOnly.setHours(0,0,0,0);
-  if(status === 'pending' && dateOnly < today) status = 'overdue';
+  const dueDateStr = f[F_TASK.dueDate] ? fmtISO(new Date(f[F_TASK.dueDate])) : null;
+  if(status === 'pending') { const cutoff = dueDateStr || fmtISO(dateOnly); if(cutoff < fmtISO(today)) status = 'overdue'; }
   // Subject改成多选后飞书返回数组；兼容老数据(单选时是字符串)
   const subjectsArr = Array.isArray(f[F_TASK.subject]) ? f[F_TASK.subject] : (f[F_TASK.subject] ? [f[F_TASK.subject]] : ['Other']);
   return {
@@ -3996,6 +4035,8 @@ function feishuRecordToTask(rec){
     notes: f['Notes'] || '',
     pauseCount: Number(f['Pause Count']) || 0,
     restSecs: Number(f['Rest Time']) || 0,
+    dueDate: f[F_TASK.dueDate] ? fmtISO(new Date(f[F_TASK.dueDate])) : null,
+    dailyLog: f[F_TASK.dailyLog] || '{}',
   };
 }
 
