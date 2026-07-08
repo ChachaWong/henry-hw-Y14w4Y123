@@ -1427,7 +1427,6 @@ function taskHTML(t, showNoReviewBtn){
   let right='';
   if(isDone){
     if(t.totalSecs) right+=`<span class="task-duration">${durFmt(t.totalSecs)}</span>`;
-    if(t.dueDate&&t.status!=='done'){const dl=Math.ceil((new Date(t.dueDate+' 23:59')-today)/86400000);const dc=dl<=0?'var(--red)':dl<=2?'var(--amber)':'var(--text-3)';right+=`<span style="font-size:10px;font-weight:600;color:${dc};white-space:nowrap">${dl<=0?'Due today':dl===1?'Due tmr':'Due '+t.dueDate}</span>`;}
     if(hasAccData) right+=accBadge(pct);
     // "No Review"按钮只在Pending Marking那个专门页面里显示(showNoReviewBtn===true时)，避免在日常浏览任务列表(今天/Overdue/Done)时不小心点到。
     // 其余地方只显示"Pending marking"文字提示，告诉你这条还没批改，但不给一个容易误触的按钮。
@@ -1454,6 +1453,7 @@ function taskHTML(t, showNoReviewBtn){
       if(!exp) right += `<span class="mini-timer-display" id="mini-clk-${t.id}">${fmtSecs(tst.elapsed)}</span>`;
       right += `<span id="mini-btnrow-${t.id}">${miniBtnRow(t.id,st)}</span>`;
     }
+    if(t.dueDate){const dl=Math.ceil((new Date(t.dueDate+' 23:59')-today)/86400000);const dc=dl<=0?'var(--red)':dl<=2?'var(--amber)':'var(--text-3)';right+=`<span style="font-size:10px;font-weight:600;color:${dc};white-space:nowrap">${dl<=0?'Due today':dl===1?'Due tmr':'Due '+t.dueDate}</span>`;}
     if(t.basePoints)   right+=`<span class="pts-tag">+${t.basePoints}pts</span>`;
   }
   right+=`<span class="chevron ${exp?'open':''}">▾</span>`;
@@ -3022,7 +3022,15 @@ async function addReview(){
   const total=parseInt(document.getElementById('ar-total').value)||null;
   const wrong=parseInt(document.getElementById('ar-wrong').value)||null;
   const arDue=document.getElementById('ar-due').value;
-  feishuCreateReview({date:new Date(dateVal+'T00:00:00'), subject:subjectLabel, subjects:arSubject, name:details, totalQ:total, wrongQ:wrong, taskRecordId:null, dueDate:arDue||null})
+  const isPastDate = dateVal < fmtISO(today);
+  let initialStatus='pending', backfilledSecs=null, backfilledCompletedAt=null;
+  if(isPastDate){
+    const result = await askPastDateStatus('This review is dated in the past. Was it already completed?', dateVal);
+    initialStatus = result.completed ? 'done' : 'pending';
+    if(result.completed && result.minutes) backfilledSecs = result.minutes * 60;
+    if(result.completed) backfilledCompletedAt = result.completedAtMs;
+  }
+  feishuCreateReview({date:new Date(dateVal+'T00:00:00'), subject:subjectLabel, subjects:arSubject, name:details, totalQ:total, wrongQ:wrong, taskRecordId:null, dueDate:arDue||null, status:initialStatus, completedAt:backfilledCompletedAt, totalSecs:backfilledSecs})
     .then(res=>{
       if(isFeishuCreateSuccess(res)) showSyncToast('✓ Review added');
       else { console.error('addReview failed, Feishu response:', JSON.stringify(res)); showSyncToast('⚠ Failed to save to Feishu — please retry', true); }
@@ -3927,9 +3935,11 @@ async function feishuSaveMarking(task){
 }
 
 // ── 7b. Need Review勾选后，创建一条Review表记录 ──
-async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ, taskRecordId, dueDate}){
+// status/completedAt/totalSecs: 补录过去日期的review时，如果用户选了"已完成"，把这几个字段一起传进来直接写入
+async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ, taskRecordId, dueDate, status, completedAt, totalSecs}){
   const pct = totalQ ? Math.round(((totalQ - (wrongQ||0)) / totalQ) * 100) : 0;
   const subjectsArr = subjects && subjects.length ? subjects : (subject ? subject.split('/').filter(Boolean) : []);
+  const isDone = status === 'done';
   const fields = {
     'Date':            new Date(date).getTime(),
     'Subject':         subjectsArr,  // Review表Subject是多选字段，传数组
@@ -3937,10 +3947,12 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
     'Total QS Count':  totalQ || 0,
     'Error Count':     wrongQ || 0,
     'Accuracy':        pct,
-    'Review Status':   'Not Started',
+    'Review Status':   isDone ? 'Done' : 'Not Started',
   };
   if(taskRecordId) fields['Task Record ID'] = taskRecordId;
   if(dueDate)      fields['Due Date'] = new Date(dueDate+'T00:00:00').getTime();
+  if(completedAt)  fields['Completed At'] = completedAt; // 补录过去review选了"已完成"，把完成时间一起写入
+  if(totalSecs)    fields['Review Time'] = totalSecs;
   const res = await apiCall('/reviews', 'POST', fields);
   console.log('feishuCreateReview:', JSON.stringify(res));
   if(res?.data?.record?.record_id){
@@ -3955,17 +3967,17 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
       totalQ: totalQ || 0,
       wrongQ: wrongQ || 0,
       accuracy: pct,
-      reviewStatus: 'Not Started',
-      done: false,
-      completedAt: null,
-      doneDate: null,
+      reviewStatus: isDone ? 'Done' : 'Not Started',
+      done: isDone,
+      completedAt: completedAt || null,
+      doneDate: completedAt ? fmtISO(new Date(completedAt)) : null,
       notes: '',
-      totalSecs: 0,
+      totalSecs: totalSecs || 0,
       points: 0,
       deleted: false,
       sessions: [],
       reviewedCount: 0,
-      dueDate: null,
+      dueDate: dueDate || null, // 修复：之前这里硬编码null，即使传了dueDate参数也会被吞掉，导致新建review后本地状态里due date当场就丢了(要刷新页面重新从飞书读回来才会有)
       dailyLog: '{}',
     });
     apiCall(`/reviews/${res.data.record.record_id}`, 'PATCH', { 'Record ID': res.data.record.record_id });
