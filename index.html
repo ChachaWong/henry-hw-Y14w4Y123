@@ -1669,16 +1669,27 @@ function reviewCardHTML(r){
   const progPct=totalWrong>0?Math.round((reviewed/totalWrong)*100):0;
   const progColor=progPct===100?'var(--green)':progPct>=50?'var(--amber)':'var(--red)';
   const agoStyle=`font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;background:${ago.cls==='urgent'?'var(--red-bg)':ago.cls==='warn'?'var(--amber-bg)':'var(--green-bg)'};color:${ago.cls==='urgent'?'var(--red)':ago.cls==='warn'?'var(--amber)':'var(--green)'}`;
+  // Due date标签：跟task卡片(taskHTML)同款est-tag样式+紧急程度配色，放在左下角meta行，只在未完成时显示
+  let dueTag = '';
+  if(!r.done && r.dueDate){
+    const dl=Math.ceil((new Date(r.dueDate+' 23:59')-today)/86400000);
+    const dueLabel = dl<=0?'Due today':dl===1?'Due tmr':'Due '+r.dueDate;
+    const dueStyle = dl<=0?'background:var(--red-bg);color:var(--red)':dl<=2?'background:var(--amber-bg);color:var(--amber)':'';
+    dueTag = `<span class="est-tag" style="${dueStyle}"><span style="margin-right:2px">📌</span>${dueLabel}</span>`;
+  }
   return `<div class="task-card${exp?' active':''}" id="rcard-${r.feishuId}">
     <div class="task-main" onclick="expandReview('${r.feishuId}',event)">
       <div class="task-check ${r.done?'checked':''}" onclick="tickReview('${r.feishuId}',event)">${r.done?'✓':''}</div>
       <div class="task-info">
         <div class="task-name" style="${r.done?'text-decoration:line-through;color:var(--text-3)':''}">${r.name}</div>
-        <div class="task-meta-row" style="margin-bottom:${totalWrong>0?'5px':'0'}"><span class="review-type-tag">📌 REVIEW</span>${pillGroup(r.subjects||r.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(r.date)}</span><span style="${agoStyle}">${ago.text}</span></div>
+        <div class="task-meta-row" style="margin-bottom:${totalWrong>0?'5px':'0'}"><span class="review-type-tag">📌 REVIEW</span>${pillGroup(r.subjects||r.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(r.date)}</span><span style="${agoStyle}">${ago.text}</span>${dueTag}</div>
         ${totalWrong>0?`<div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;max-width:160px"><div style="width:${progPct}%;height:100%;background:${progColor};border-radius:3px"></div></div><span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-3)">${reviewed}/${totalWrong} reviewed</span></div>`:''}
       </div>
       <div class="task-right">
-        ${r.done?`${r.totalSecs?`<span class="task-duration">${durFmt(r.totalSecs)}</span>`:''}<span class="review-tag rt-done">✓ Done</span>`:(()=>{
+        ${r.done?`${r.totalSecs?`<span class="task-duration">${durFmt(r.totalSecs)}</span>`:''}<span class="review-tag rt-done">✓ Done</span>`:''}
+        ${accBadgeHTML(pct)}
+        ${r.done&&r.points?`<span class="pts-tag">+${r.points}pts</span>`:''}
+        ${!r.done?(()=>{
           const tst=getReviewTS(r.feishuId);
           const st = tst.state;
           if(st==='idle') return `<button class="action-btn primary" onclick="rvStart('${r.feishuId}',event)">▶ Start</button>`;
@@ -1692,9 +1703,7 @@ function reviewCardHTML(r){
           }
           html+=`<span id="rv-mini-btnrow-${r.feishuId}">${miniBtnRow(r.feishuId,st,'review')}</span>`;
           return html;
-        })()}
-        ${accBadgeHTML(pct)}
-        ${r.done&&r.points?`<span class="pts-tag">+${r.points}pts</span>`:''}
+        })():''}
         <span class="chevron ${exp?'open':''}">▾</span>
       </div>
     </div>
