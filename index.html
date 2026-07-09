@@ -2247,13 +2247,14 @@ function rvStart(id,e){
   const t=getReviewTS(id); if(t.state==='running') return;
   const rmode=reviewTimerMode[id]||'stopwatch';
   if(rmode==='countdown'&&!reviewCountdownTarget[id]) setReviewCountdownTarget(id);
+  if(rmode==='countdown'&&Notification.permission==='default') Notification.requestPermission();
   t.state='running'; t.sessionStart=Date.now()-t.elapsed*1000;
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   t.sessions.push({a:'Start',t:'Today '+now});
   t.interval=setInterval(()=>{
     t.elapsed=Math.floor((Date.now()-t.sessionStart)/1000);
     const target=rmode==='countdown'?(reviewCountdownTarget[id]||600):0;
-    if(target>0&&t.elapsed>=target&&!t.alerted){ t.alerted=true; playAlertSound(); showToast('⏰ Review time target reached!'); }
+    if(target>0&&t.elapsed>=target&&!t.alerted){ t.alerted=true; playAlertSound(); showReviewAlert(id); }
     rvTickUI(id,t);
   },500);
   rvUpdateCtrl(id,t);
@@ -2376,6 +2377,9 @@ function tStart(id,e){
   const mode=taskTimerMode[id]||'stopwatch';
   if(mode==='countdown'&&!taskCountdownTarget[id]) setCountdownTarget(id);
   if(mode==='pomodoro'&&!taskPomoState[id]) taskPomoState[id]={round:1,phase:'focus'};
+  // 提前在点Start这个真实用户操作的时刻就问通知权限，而不是等倒计时/番茄钟到点那一刻才问——
+  // 那时候黄花菜都凉了，就算当场点允许，这一次的提醒也已经错过了，只有下一次才会真正弹出来
+  if((mode==='countdown'||mode==='pomodoro')&&Notification.permission==='default') Notification.requestPermission();
   t.state='running'; t.sessionStart=Date.now()-t.elapsed*1000; t.overtime=0;
   const now=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
   t.sessions.push({a:'Start',t:'Today '+now});
@@ -3543,15 +3547,30 @@ function playTickSound(done){
 function playAlertSound(){
   try {
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    [[880,0,0.3],[880,0.35,0.3],[1046,0.7,0.5]].forEach(([freq,start,dur])=>{
-      const o=ctx.createOscillator(), g=ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value=freq; o.type='sine';
-      g.gain.setValueAtTime(0.4,ctx.currentTime+start);
-      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
-      o.start(ctx.currentTime+start); o.stop(ctx.currentTime+start+dur);
-    });
+    const play=()=>{
+      [[880,0,0.3],[880,0.35,0.3],[1046,0.7,0.5]].forEach(([freq,start,dur])=>{
+        const o=ctx.createOscillator(), g=ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value=freq; o.type='sine';
+        g.gain.setValueAtTime(0.4,ctx.currentTime+start);
+        g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
+        o.start(ctx.currentTime+start); o.stop(ctx.currentTime+start+dur);
+      });
+    };
+    // 之前这里没有像playTickSound一样处理AudioContext挂起的情况——标签页切到后台一段时间后，
+    // 浏览器可能会自动把新建的AudioContext挂起，不resume就直接播放会静默失败(而且被下面的catch吞掉，完全看不出来)，
+    // 这大概率就是"倒计时到点但完全没有提示音"的根源之一
+    if(ctx.state==='suspended') ctx.resume().then(play).catch(()=>{});
+    else play();
   } catch(e){}
+}
+function showReviewAlert(id){
+  const r=REVIEWS.find(rv=>rv.feishuId===id);
+  const name=r?r.name:'Review';
+  const msg=`Time's up for "${name}"! ⏰`;
+  if(Notification.permission==='granted') new Notification('Homework Timer',{body:msg});
+  else if(Notification.permission!=='denied') Notification.requestPermission();
+  showToast(msg);
 }
 function showTaskAlert(id,mode){
   const task=TASKS.find(t=>t.id===id);
