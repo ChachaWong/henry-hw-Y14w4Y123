@@ -1489,7 +1489,7 @@ function classCardHTML(t){
     <div class="task-main" onclick="expand('${t.id}',event)">
       <div class="task-check ${isDone?'checked':''}${isSkipped||isRescheduled?' disabled':''}" onclick="${isSkipped||isRescheduled?'':`tickClass('${t.id}',event)`}" style="${isSkipped||isRescheduled?'opacity:0.4;cursor:not-allowed':''}">${isDone?'✓':isSkipped?'⏭':isRescheduled?'↻':''}</div>
       <div class="task-info">
-        <div class="task-name">🏫 ${t.name}${timeStr?` <span style="font-size:13px;font-weight:600;color:var(--orange);font-family:'DM Mono',monospace">· ${timeStr}</span>`:''}</div>
+        <div class="task-name">🏫 ${t.name}${timeStr?(isDone?` · ${timeStr}`:` <span style="font-size:13px;font-weight:600;color:var(--orange);font-family:'DM Mono',monospace">· ${timeStr}</span>`):''}</div>
         <div class="task-meta-row">${pillGroup(t.subjects||t.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${priceShort?`<span class="est-tag"><span style="margin-right:2px">💰</span>${priceShort}</span>`:''}${t.location?`<span class="class-loc-tag">📍${t.location}</span>`:''}${isSkipped?'<span class="review-tag" style="background:var(--amber-bg);color:var(--amber)">⏭ Skipped</span>':''}${isRescheduled?'<span class="review-tag" style="background:var(--accent-bg);color:var(--accent)">↻ Rescheduled</span>':''}</div>
       </div>
       <div class="task-right">${isDone&&t.totalSecs?`<span class="task-duration">${durFmt(t.totalSecs)}</span>`:''}${t.basePoints?`<span class="pts-tag">+${t.basePoints}pts</span>`:''}<span class="chevron ${exp?'open':''}">▾</span></div>
