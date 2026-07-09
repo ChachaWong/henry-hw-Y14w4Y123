@@ -1437,6 +1437,8 @@ function taskHTML(t, showNoReviewBtn){
     // 剩下的情况(marking.saved为true但没有正确率数据，即点过Quick Mark)：什么都不显示，跟Class勾选完成一样安静地标记完成
     if(t.basePoints) right+=`<span class="pts-tag">+${t.basePoints}pts</span>`;
   } else {
+    // 分数标签放在最前面，Start/计时器状态放最后(紧贴chevron)，右侧看着整齐：正确率/分数在左，操作按钮在最右
+    if(t.basePoints) right+=`<span class="pts-tag">+${t.basePoints}pts</span>`;
     // stopped是历史遗留状态(以后不会再产生新的，因为UI上已经没有Stop按钮了)，统一当作paused处理——
     // 飞书里如果还存在历史的Stopped记录，刷新页面读回来后这里会被当成paused对待，可以直接点Continue接着用，
     // 不会卡在一个UI上已经不存在对应入口的状态分支里。
@@ -1453,13 +1455,19 @@ function taskHTML(t, showNoReviewBtn){
       if(!exp) right += `<span class="mini-timer-display" id="mini-clk-${t.id}">${fmtSecs(tst.elapsed)}</span>`;
       right += `<span id="mini-btnrow-${t.id}">${miniBtnRow(t.id,st)}</span>`;
     }
-    if(t.dueDate){const dl=Math.ceil((new Date(t.dueDate+' 23:59')-today)/86400000);const dc=dl<=0?'var(--red)':dl<=2?'var(--amber)':'var(--text-3)';right+=`<span style="font-size:10px;font-weight:600;color:${dc};white-space:nowrap">${dl<=0?'Due today':dl===1?'Due tmr':'Due '+t.dueDate}</span>`;}
-    if(t.basePoints)   right+=`<span class="pts-tag">+${t.basePoints}pts</span>`;
   }
   right+=`<span class="chevron ${exp?'open':''}">▾</span>`;
   const overdueAgo = isOverdue ? daysAgoLabel(t.date) : null;
   const overdueAgoStyle = overdueAgo ? `font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;background:${overdueAgo.cls==='urgent'?'var(--red-bg)':'var(--amber-bg)'};color:${overdueAgo.cls==='urgent'?'var(--red)':'var(--amber)'}` : '';
-  const meta = `${pillGroup(t.subjects||t.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${t.estSecs?`<span class="est-tag"><span style="margin-right:2px">⏱️</span>${durFmt(t.estSecs)}</span>`:''}`;
+  // Due date标签：跟est-tag(预估时间)同款样式，颜色按紧急程度走(今天/过期红、1-2天内橙、更远沿用默认灰)，放在左下角meta行里
+  let dueTag = '';
+  if(!isDone && t.dueDate){
+    const dl=Math.ceil((new Date(t.dueDate+' 23:59')-today)/86400000);
+    const dueLabel = dl<=0?'Due today':dl===1?'Due tmr':'Due '+t.dueDate;
+    const dueStyle = dl<=0?'background:var(--red-bg);color:var(--red)':dl<=2?'background:var(--amber-bg);color:var(--amber)':'';
+    dueTag = `<span class="est-tag" style="${dueStyle}"><span style="margin-right:2px">📌</span>${dueLabel}</span>`;
+  }
+  const meta = `${pillGroup(t.subjects||t.subject)}<span class="task-date"><span style="margin-right:2px">📅</span>${fmt(t.date)}</span>${isOverdue?`<span style="${overdueAgoStyle}">${overdueAgo.text}</span>`:''}${t.estSecs?`<span class="est-tag"><span style="margin-right:2px">⏱️</span>${durFmt(t.estSecs)}</span>`:''}${dueTag}`;
   return `<div class="${cardCls}" id="card-${t.id}">
     <div class="task-main" onclick="expand('${t.id}',event)">
       <div class="task-check ${isDone?'checked':''}" onclick="tickTask('${t.id}',event)">${isDone?'✓':''}</div>
