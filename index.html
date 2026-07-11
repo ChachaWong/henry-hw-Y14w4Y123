@@ -1551,26 +1551,47 @@ function expandedHTML(t){
   // 之前用 t.dueDate!==undefined 判断要不要显示这一行，但新建task没填due date时dueDate这个key
   // 压根不会被赋值到对象上(见addTask)，永远是undefined，这一行就永远不渲染，以后也没法补填。
   // 改成无条件渲染，没有值时输入框留空即可。
-  const dueDateRow = `<div style="margin-bottom:6px"><div class="field-lbl">Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></div><input type="date" id="task-due-${t.id}" value="${t.dueDate||''}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif"></div>`;
-
-  // 补录今天用时：只在设置了Due Date的多天任务上显示——这类任务孩子可能某天用外面的时钟计时，
-  // app内计时器完全没记录到，事后没法补，所以给一个手动追加的入口(累加，不覆盖，跟app计时器互不影响)。
-  const manualTimeRow = t.dueDate ? `<div style="margin-bottom:6px;display:flex;gap:6px;align-items:center">
-    <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ Add today's time</span>
-    <input type="number" id="task-manualtime-${t.id}" min="1" placeholder="mins" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
-    <button onclick="addManualTime('${t.id}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ Add</button>
-  </div>` : '';
-
-  const detailsRow = `<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
+  // ── Due Date + Task Details + Pts 合并一行 ──
+  const dueDetailsPtsRow = `<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
+    <div style="width:118px;flex-shrink:0">
+      <div class="field-lbl">Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></div>
+      <input type="date" id="task-due-${t.id}" value="${t.dueDate||''}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif">
+    </div>
     <div style="flex:1;min-width:0">
       <div class="field-lbl">Task Details</div>
       <input type="text" id="task-name-${t.id}" value="${(t.name||'').replace(/"/g,'&quot;')}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif">
     </div>
-    <div style="width:60px;flex-shrink:0">
+    <div style="width:56px;flex-shrink:0">
       <div class="field-lbl">Pts</div>
       <input type="number" id="task-points-${t.id}" value="${t.basePoints||''}" min="0" placeholder="0" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
     </div>
   </div>`;
+
+  // 补录今天用时 + 今日正确率：只在设置了Due Date的多天任务上显示，并排一行。
+  // 补录用时：孩子今天可能用了外面的时钟计时，app计时器没记到，累加(不覆盖)进dailyLog/totalSecs。
+  // 今日正确率：每天各自记当天新增的题数(不是累计总数)，跟dailyLog同一个思路，最终Marking会自动把所有天数加总。
+  let todayAcc = {}; try{ todayAcc = JSON.parse(t.dailyAccuracy||'{}')[fmtISO(today)] || {}; }catch(e){}
+  const todayAccPct = accPct(todayAcc.total, todayAcc.wrong);
+  const todayAccColor = todayAccPct===null?'var(--text-3)':todayAccPct>=90?'var(--green)':todayAccPct>=70?'var(--amber)':'var(--red)';
+  const timeAccRow = t.dueDate ? `<div style="margin-bottom:6px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ Add today's time</span>
+      <input type="number" id="task-manualtime-h-${t.id}" min="0" max="9" placeholder="0" style="width:32px;padding:5px 4px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <span style="font-size:10px;color:var(--text-3)">h</span>
+      <input type="number" id="task-manualtime-m-${t.id}" min="0" max="59" placeholder="0" style="width:32px;padding:5px 4px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <span style="font-size:10px;color:var(--text-3)">m</span>
+      <input type="number" id="task-manualtime-s-${t.id}" min="0" max="59" placeholder="0" style="width:32px;padding:5px 4px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <span style="font-size:10px;color:var(--text-3)">s</span>
+      <button onclick="addManualTime('${t.id}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ Add</button>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">📝 Today's accuracy</span>
+      <input type="number" id="task-acc-total-${t.id}" value="${todayAcc.total||''}" min="0" placeholder="total" oninput="liveTodayAcc('${t.id}')" style="width:50px;padding:5px 5px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <input type="number" id="task-acc-wrong-${t.id}" value="${todayAcc.wrong||''}" min="0" placeholder="wrong" oninput="liveTodayAcc('${t.id}')" style="width:50px;padding:5px 5px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <span id="task-acc-live-${t.id}" style="font-size:11px;font-family:'DM Mono',monospace;color:${todayAccColor};min-width:30px;display:inline-block">${todayAccPct!==null?todayAccPct+'%':'—'}</span>
+      <button onclick="saveTodayAccuracy('${t.id}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">Save</button>
+    </div>
+  </div>` : '';
 
   const notesRow = `<div style="margin-bottom:4px">
     <div class="field-lbl">Notes</div>
@@ -1588,20 +1609,39 @@ function expandedHTML(t){
     : '';
 
   const leftCol = `<div style="flex:1.1;min-width:0;padding:10px 12px;border-right:1px solid var(--border)">
-    ${dueDateRow}${manualTimeRow}${detailsRow}${notesRow}${actionsRow}${sessLogBlock}
+    ${dueDetailsPtsRow}${timeAccRow}${notesRow}${actionsRow}${sessLogBlock}
   </div>`;
 
   // ── 右栏：未完成=计时器，已完成=完成摘要+Marking ──
   let rightCol;
   if(isDone){
     const mk=t.marking||{};
-    const pct=mk.saved?accPct(mk.totalQ,mk.wrongQ):null;
+    const pct=accPct(mk.totalQ,mk.wrongQ);
     const pctColor=pct===null?'var(--text-3)':pct>=90?'var(--green)':pct>=70?'var(--amber)':'var(--red)';
     let timeCompare='';
     if(t.estSecs&&t.totalSecs){
       const diff=t.totalSecs-t.estSecs, sign=diff>0?'+':'';
       const color=Math.abs(diff)<300?'var(--green)':diff>0?'var(--red)':'var(--amber)';
       timeCompare=`<div style="font-size:11px;color:${color};font-family:'DM Mono',monospace;margin-bottom:6px">${sign}${durFmt(Math.abs(diff))} vs est.</div>`;
+    }
+    // Due Date任务：Marking的Total Q/Wrong默认预填每日正确率记录的加总(还没保存时才预填，不覆盖已有手动填值)，
+    // 保存前都还能改；下面再给一个可展开的每日明细，方便一眼看出是哪天拖了后腿。
+    let daBreakdown = '';
+    if(t.dueDate){
+      let daLog={}; try{ daLog=JSON.parse(t.dailyAccuracy||'{}'); }catch(e){}
+      const daDays=Object.keys(daLog).sort();
+      if(daDays.length){
+        const daTotal=daDays.reduce((s,d)=>s+(Number(daLog[d].total)||0),0);
+        const daWrong=daDays.reduce((s,d)=>s+(Number(daLog[d].wrong)||0),0);
+        if(!mk.saved && (mk.totalQ==null||mk.totalQ==='')){ mk.totalQ=daTotal; mk.wrongQ=daWrong; }
+        daBreakdown = `<div style="margin-top:4px">
+          <span style="font-size:11px;color:var(--text-3);cursor:pointer;user-select:none" onclick="toggleDailyBreakdown('${t.id}')">▾ Daily breakdown</span>
+          <div id="da-breakdown-${t.id}" style="display:none;margin-top:4px">${daDays.map(d=>{
+            const dv=daLog[d]; const dpct=accPct(dv.total,dv.wrong);
+            return `<div class="sess-row"><span>${d}</span><span>${dv.total||0} Q / ${dv.wrong||0} wrong${dpct!==null?' / '+dpct+'%':''}</span></div>`;
+          }).join('')}</div>
+        </div>`;
+      }
     }
     rightCol = `<div style="flex:1;min-width:0;padding:10px 12px">
       ${t.totalSecs?`<div style="font-size:12px;color:var(--text-2);margin-bottom:6px">⏱ <strong>${durFmt(t.totalSecs)}</strong></div>`:''}
@@ -1620,6 +1660,7 @@ function expandedHTML(t){
           </div>
           ${mk.saved?`<button class="tbtn-edit" onclick="editMarking('${t.id}')">✏️</button>`:`<button class="tbtn-save-marking" onclick="saveMarking('${t.id}')">Save</button>`}
         </div>
+        ${daBreakdown}
       </div>
     </div>`;
   } else {
@@ -2432,11 +2473,15 @@ function updateDailyLog(item, totalElapsed) {
 // 跟updateDailyLog不一样：updateDailyLog是"今天=总时长-其他天"，假设总时长是唯一可信来源(app计时器持续在记)。
 // 这里是"追加"：孩子今天可能用了app计时器一部分、又用外面的时钟计了一部分，两者要能叠加，不能互相覆盖。
 function addManualTime(taskId){
-  const input = document.getElementById('task-manualtime-'+taskId);
-  const mins = parseInt(input && input.value);
-  if(!mins || mins<=0){ if(input) input.focus(); return; }
+  const hEl = document.getElementById('task-manualtime-h-'+taskId);
+  const mEl = document.getElementById('task-manualtime-m-'+taskId);
+  const sEl = document.getElementById('task-manualtime-s-'+taskId);
+  const h = parseInt(hEl && hEl.value) || 0;
+  const m = parseInt(mEl && mEl.value) || 0;
+  const s = parseInt(sEl && sEl.value) || 0;
+  const addedSecs = h*3600 + m*60 + s;
+  if(addedSecs<=0){ if(hEl) hEl.focus(); return; }
   const task = TASKS.find(t=>t.id===taskId); if(!task) return;
-  const addedSecs = mins*60;
   const snapshot = { totalSecs: task.totalSecs, dailyLog: task.dailyLog }; // 失败时回滚
 
   const todayStr = fmtISO(today);
@@ -2444,13 +2489,13 @@ function addManualTime(taskId){
   log[todayStr] = (log[todayStr]||0) + addedSecs;
   task.dailyLog = JSON.stringify(log);
   task.totalSecs = (task.totalSecs||0) + addedSecs;
-  input.value = '';
+  if(hEl) hEl.value=''; if(mEl) mEl.value=''; if(sEl) sEl.value='';
   renderContent();
 
   feishuAddManualTaskTime(task).then(res=>{
     if(isFeishuUpdateSuccess(res)){
-      showSyncToast(`✓ Added ${mins} min`);
-      feishuLogAction(task, 'Manual', task.type==='class'?'Class':'Task', `(+${mins}min manual)`);
+      showSyncToast(`✓ Added ${durFmt(addedSecs)}`);
+      feishuLogAction(task, 'Manual', task.type==='class'?'Class':'Task', `(+${durFmt(addedSecs)} manual)`);
     } else {
       console.error('addManualTime failed, Feishu response:', JSON.stringify(res));
       Object.assign(task, snapshot);
@@ -2467,6 +2512,57 @@ async function feishuAddManualTaskTime(task){
   const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', fields);
   console.log('feishuAddManualTaskTime result:', JSON.stringify(res));
   return res;
+}
+
+// ── 今日正确率：实时算百分比(输入框oninput调用，纯前端展示，不发请求) ──
+function liveTodayAcc(id){
+  const total=parseInt(document.getElementById('task-acc-total-'+id)?.value)||0;
+  const wrong=parseInt(document.getElementById('task-acc-wrong-'+id)?.value)||0;
+  const disp=document.getElementById('task-acc-live-'+id); if(!disp) return;
+  if(total>0){ const pct=Math.round(((total-wrong)/total)*100); disp.textContent=pct+'%'; disp.style.color=pct>=90?'var(--green)':pct>=70?'var(--amber)':'var(--red)'; }
+  else { disp.textContent='—'; disp.style.color='var(--text-3)'; }
+}
+
+// ── 今日正确率：Save按钮，只写当天那一条，不影响其他天的记录 ──
+function saveTodayAccuracy(taskId){
+  const totalEl=document.getElementById('task-acc-total-'+taskId);
+  const wrongEl=document.getElementById('task-acc-wrong-'+taskId);
+  const total=parseInt(totalEl&&totalEl.value)||0;
+  const wrong=parseInt(wrongEl&&wrongEl.value)||0;
+  if(total<=0){ if(totalEl) totalEl.focus(); return; }
+  const task=TASKS.find(t=>t.id===taskId); if(!task) return;
+  const snapshot = { dailyAccuracy: task.dailyAccuracy };
+
+  const todayStr=fmtISO(today);
+  let log={}; try{ log=JSON.parse(task.dailyAccuracy||'{}'); }catch(e){}
+  log[todayStr] = { total, wrong };
+  task.dailyAccuracy = JSON.stringify(log);
+  renderContent();
+
+  feishuSaveTodayAccuracy(task).then(res=>{
+    if(isFeishuUpdateSuccess(res)){
+      showSyncToast('✓ Accuracy saved');
+    } else {
+      console.error('saveTodayAccuracy failed, Feishu response:', JSON.stringify(res));
+      Object.assign(task, snapshot);
+      showSyncToast('⚠ Failed to save — please retry', true);
+      renderContent();
+    }
+  });
+}
+
+async function feishuSaveTodayAccuracy(task){
+  if(!task.feishuId) return null;
+  const fields = { [F_TASK.dailyAccuracy]: task.dailyAccuracy };
+  const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', fields);
+  console.log('feishuSaveTodayAccuracy result:', JSON.stringify(res));
+  return res;
+}
+
+// ── Marking面板里"Daily breakdown"展开/收起(纯前端，不发请求) ──
+function toggleDailyBreakdown(id){
+  const el=document.getElementById('da-breakdown-'+id); if(!el) return;
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
 }
 
 // ── Review版本，逻辑跟addManualTime完全对应 ──
@@ -3704,6 +3800,7 @@ const F_TASK = {
   needReview: 'Need Review',
   dueDate:    'Due Date',
   dailyLog:   'Daily Log',
+  dailyAccuracy: 'Daily Accuracy',
 };
 
 // 计时记录表字段名（与飞书列名完全一致）
@@ -4197,6 +4294,7 @@ function feishuRecordToTask(rec){
     restSecs: Number(f['Rest Time']) || 0,
     dueDate: f[F_TASK.dueDate] ? fmtISO(new Date(f[F_TASK.dueDate])) : null,
     dailyLog: f[F_TASK.dailyLog] || '{}',
+    dailyAccuracy: f[F_TASK.dailyAccuracy] || '{}',
   };
 }
 
