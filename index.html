@@ -1551,6 +1551,15 @@ function expandedHTML(t){
   // 压根不会被赋值到对象上(见addTask)，永远是undefined，这一行就永远不渲染，以后也没法补填。
   // 改成无条件渲染，没有值时输入框留空即可。
   const dueDateRow = `<div style="margin-bottom:6px"><div class="field-lbl">Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></div><input type="date" id="task-due-${t.id}" value="${t.dueDate||''}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif"></div>`;
+
+  // 补录今天用时：只在设置了Due Date的多天任务上显示——这类任务孩子可能某天用外面的时钟计时，
+  // app内计时器完全没记录到，事后没法补，所以给一个手动追加的入口(累加，不覆盖，跟app计时器互不影响)。
+  const manualTimeRow = t.dueDate ? `<div style="margin-bottom:6px;display:flex;gap:6px;align-items:center">
+    <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ 补录今天用时</span>
+    <input type="number" id="task-manualtime-${t.id}" min="1" placeholder="分钟" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+    <button onclick="addManualTime('${t.id}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ 添加</button>
+  </div>` : '';
+
   const detailsRow = `<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
     <div style="flex:1;min-width:0">
       <div class="field-lbl">Task Details</div>
@@ -1578,7 +1587,7 @@ function expandedHTML(t){
     : '';
 
   const leftCol = `<div style="flex:1.1;min-width:0;padding:10px 12px;border-right:1px solid var(--border)">
-    ${dueDateRow}${detailsRow}${notesRow}${actionsRow}${sessLogBlock}
+    ${dueDateRow}${manualTimeRow}${detailsRow}${notesRow}${actionsRow}${sessLogBlock}
   </div>`;
 
   // ── 右栏：未完成=计时器，已完成=完成摘要+Marking ──
@@ -1741,6 +1750,11 @@ function reviewSubHTML(r, prefix){
       <div class="field-lbl">Due Date <span style="font-weight:400;color:var(--text-3)">(optional)</span></div>
       <input type="date" id="${prefix}-due-${id}" value="${r.dueDate||''}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif">
     </div>
+    ${r.dueDate?`<div style="margin-bottom:8px;display:flex;gap:6px;align-items:center">
+      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ 补录今天用时</span>
+      <input type="number" id="${prefix}-manualtime-${id}" min="1" placeholder="分钟" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <button onclick="addManualTimeReview('${id}','${prefix}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ 添加</button>
+    </div>`:''}
     <div class="review-sub-title">
       <span>📌 Review &nbsp;<span style="font-size:11px;font-weight:400;color:${accColor}">${pct!==null?pct+'% accuracy':''}</span></span>
       ${isDone?'<span class="review-done-badge">✓ Complete</span>':''} 
@@ -2411,6 +2425,84 @@ function updateDailyLog(item, totalElapsed) {
     log[todayStr] = Math.max(0, totalElapsed - otherDays);
     item.dailyLog = JSON.stringify(log);
   } catch(e) { item.dailyLog = JSON.stringify({[todayStr]: totalElapsed}); }
+}
+
+// ── 补录今天用时（Due Date任务专用）──
+// 跟updateDailyLog不一样：updateDailyLog是"今天=总时长-其他天"，假设总时长是唯一可信来源(app计时器持续在记)。
+// 这里是"追加"：孩子今天可能用了app计时器一部分、又用外面的时钟计了一部分，两者要能叠加，不能互相覆盖。
+function addManualTime(taskId){
+  const input = document.getElementById('task-manualtime-'+taskId);
+  const mins = parseInt(input && input.value);
+  if(!mins || mins<=0){ if(input) input.focus(); return; }
+  const task = TASKS.find(t=>t.id===taskId); if(!task) return;
+  const addedSecs = mins*60;
+  const snapshot = { totalSecs: task.totalSecs, dailyLog: task.dailyLog }; // 失败时回滚
+
+  const todayStr = fmtISO(today);
+  let log = {}; try{ log = JSON.parse(task.dailyLog||'{}'); }catch(e){}
+  log[todayStr] = (log[todayStr]||0) + addedSecs;
+  task.dailyLog = JSON.stringify(log);
+  task.totalSecs = (task.totalSecs||0) + addedSecs;
+  input.value = '';
+  renderContent();
+
+  feishuAddManualTaskTime(task).then(res=>{
+    if(isFeishuUpdateSuccess(res)){
+      showSyncToast(`✓ 已补录 ${mins} 分钟`);
+      feishuLogAction(task, 'Manual', task.type==='class'?'Class':'Task', `(+${mins}min manual)`);
+    } else {
+      console.error('addManualTime failed, Feishu response:', JSON.stringify(res));
+      Object.assign(task, snapshot);
+      showSyncToast('⚠ 补录失败，请重试', true);
+      renderContent();
+    }
+  });
+}
+
+// ── 只更新Focus Time + Daily Log，不碰Status，避免手动补录时把任务状态意外改掉 ──
+async function feishuAddManualTaskTime(task){
+  if(!task.feishuId) return null;
+  const fields = { [F_TASK.focusTime]: task.totalSecs, [F_TASK.dailyLog]: task.dailyLog };
+  const res = await apiCall(`/tasks/${task.feishuId}`, 'PATCH', fields);
+  console.log('feishuAddManualTaskTime result:', JSON.stringify(res));
+  return res;
+}
+
+// ── Review版本，逻辑跟addManualTime完全对应 ──
+function addManualTimeReview(id, prefix){
+  const input = document.getElementById(prefix+'-manualtime-'+id);
+  const mins = parseInt(input && input.value);
+  if(!mins || mins<=0){ if(input) input.focus(); return; }
+  const r = REVIEWS.find(rv=>rv.feishuId===id); if(!r) return;
+  const addedSecs = mins*60;
+  const snapshot = { totalSecs: r.totalSecs, dailyLog: r.dailyLog };
+
+  const todayStr = fmtISO(today);
+  let log = {}; try{ log = JSON.parse(r.dailyLog||'{}'); }catch(e){}
+  log[todayStr] = (log[todayStr]||0) + addedSecs;
+  r.dailyLog = JSON.stringify(log);
+  r.totalSecs = (r.totalSecs||0) + addedSecs;
+  input.value = '';
+  renderContent();
+
+  feishuAddManualReviewTime(r).then(res=>{
+    if(isFeishuUpdateSuccess(res)){
+      showSyncToast(`✓ 已补录 ${mins} 分钟`);
+      feishuLogActionForReview(r, 'Manual', `(+${mins}min manual)`);
+    } else {
+      console.error('addManualTimeReview failed, Feishu response:', JSON.stringify(res));
+      Object.assign(r, snapshot);
+      showSyncToast('⚠ 补录失败，请重试', true);
+      renderContent();
+    }
+  });
+}
+
+async function feishuAddManualReviewTime(r){
+  if(!r.feishuId) return null;
+  const res = await apiCall(`/reviews/${r.feishuId}`, 'PATCH', { 'Review Time': r.totalSecs, 'Daily Log': r.dailyLog });
+  console.log('feishuAddManualReviewTime result:', JSON.stringify(res));
+  return res;
 }
 
 function tPause(id,e){
@@ -3791,11 +3883,11 @@ function deleteReview(id,e){
 }
 
 // ── 3. 写计时记录表（每次 Start/Pause/Continue/Stop/Finish 都调用）──
-async function feishuLogAction(task, actionLabel, type){
+async function feishuLogAction(task, actionLabel, type, extraDetail){
   const fields = {
     [F_LOG.date]:       new Date(task.date).getTime(),
     [F_LOG.subject]:    subjectsArrOf(task),  // Time Record表Subject是多选字段，传数组
-    [F_LOG.details]:    task.name,
+    [F_LOG.details]:    extraDetail ? `${task.name} ${extraDetail}` : task.name,
     [F_LOG.action]:     actionLabel,
     [F_LOG.actionTime]: Date.now(),
     'Type':             type || 'Task',
@@ -3808,11 +3900,11 @@ async function feishuLogAction(task, actionLabel, type){
 }
 
 // ── Review专用的Time Record写入: r是review对象(来自REVIEWS数组,不是task) ──
-async function feishuLogActionForReview(r, actionLabel){
+async function feishuLogActionForReview(r, actionLabel, extraDetail){
   const fields = {
     [F_LOG.date]:       new Date(r.date).getTime(),
     [F_LOG.subject]:    subjectsArrOf(r),  // Time Record表Subject是多选字段，传数组
-    [F_LOG.details]:    r.name,
+    [F_LOG.details]:    extraDetail ? `${r.name} ${extraDetail}` : r.name,
     [F_LOG.action]:     actionLabel,
     [F_LOG.actionTime]: Date.now(),
     'Type':              'Review',
@@ -4291,6 +4383,28 @@ renderSubjectPicker('at-subject-picker','atSubject','tasks');
 renderSubjectPicker('ac-type-picker','acType','classes');
 renderSubjectPicker('ar-subject-picker','arSubject','reviews');
 setInterval(autoCompleteOverdueClasses, 60*1000);
+checkDailyRecurringSafetyNet();
+
+// ── Recurring安全网：每天首次打开页面时调用一次/run-daily-check ──
+// /run-daily-check在Worker内部会先查飞书today是否已经生成过(isAlreadyGenerated)，重复调用是安全的、不会产生重复任务。
+// 用localStorage记一个"今天已经调用过"的标记，避免同一天每次刷新都打一次飞书API配额。
+// 这不是取代Cron——Cron依然是主力(每天固定点跑)，这里只是万一某次Cron因为飞书临时抖动而失败时的补救手段。
+function checkDailyRecurringSafetyNet(){
+  const todayStr = fmtISO(today);
+  const key = 'hw-daily-check-'+todayStr;
+  if(localStorage.getItem(key)) return; // 今天已经调用过了，跳过
+  fetch(WORKER_URL + '/run-daily-check', { method: 'POST' })
+    .then(r => r.json())
+    .then(res => {
+      console.log('checkDailyRecurringSafetyNet:', JSON.stringify(res));
+      if(res && !res.error){
+        localStorage.setItem(key, '1');
+        // 万一Cron真的漏跑、这次补生成了新任务，静默刷新一次数据，让Henry不用手动刷新就能看到今天的任务
+        if(res.generated > 0) loadAllDataFromFeishu();
+      }
+    })
+    .catch(e => console.error('checkDailyRecurringSafetyNet failed:', e));
+}
 
 // ── Worker 保活：每3分钟发一次 ping，防止 Cloudflare Worker 冷启动
 // Worker 闲置5分钟以上会被回收，下次请求需要重新启动并重新鉴权（慢2-3秒）。
