@@ -283,6 +283,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <body>
 <div id="printContainer"></div>
 <div class="main">
+  <div id="recurringAlertBar"></div>
   <div class="action-bar">
     <button class="abar-btn primary" onclick="openModal('addTaskModal')">＋ Add Task</button>
     <button class="abar-btn orange"  onclick="openModal('addClassModal')">＋ Add Class</button>
@@ -1555,9 +1556,9 @@ function expandedHTML(t){
   // 补录今天用时：只在设置了Due Date的多天任务上显示——这类任务孩子可能某天用外面的时钟计时，
   // app内计时器完全没记录到，事后没法补，所以给一个手动追加的入口(累加，不覆盖，跟app计时器互不影响)。
   const manualTimeRow = t.dueDate ? `<div style="margin-bottom:6px;display:flex;gap:6px;align-items:center">
-    <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ 补录今天用时</span>
-    <input type="number" id="task-manualtime-${t.id}" min="1" placeholder="分钟" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
-    <button onclick="addManualTime('${t.id}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ 添加</button>
+    <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ Add today's time</span>
+    <input type="number" id="task-manualtime-${t.id}" min="1" placeholder="mins" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+    <button onclick="addManualTime('${t.id}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ Add</button>
   </div>` : '';
 
   const detailsRow = `<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px">
@@ -1751,9 +1752,9 @@ function reviewSubHTML(r, prefix){
       <input type="date" id="${prefix}-due-${id}" value="${r.dueDate||''}" style="width:100%;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif">
     </div>
     ${r.dueDate?`<div style="margin-bottom:8px;display:flex;gap:6px;align-items:center">
-      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ 补录今天用时</span>
-      <input type="number" id="${prefix}-manualtime-${id}" min="1" placeholder="分钟" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
-      <button onclick="addManualTimeReview('${id}','${prefix}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ 添加</button>
+      <span style="font-size:11px;color:var(--text-3);white-space:nowrap">⏱ Add today's time</span>
+      <input type="number" id="${prefix}-manualtime-${id}" min="1" placeholder="mins" style="width:64px;padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <button onclick="addManualTimeReview('${id}','${prefix}')" style="padding:5px 10px;background:var(--bg);color:var(--text-2);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ Add</button>
     </div>`:''}
     <div class="review-sub-title">
       <span>📌 Review &nbsp;<span style="font-size:11px;font-weight:400;color:${accColor}">${pct!==null?pct+'% accuracy':''}</span></span>
@@ -2448,12 +2449,12 @@ function addManualTime(taskId){
 
   feishuAddManualTaskTime(task).then(res=>{
     if(isFeishuUpdateSuccess(res)){
-      showSyncToast(`✓ 已补录 ${mins} 分钟`);
+      showSyncToast(`✓ Added ${mins} min`);
       feishuLogAction(task, 'Manual', task.type==='class'?'Class':'Task', `(+${mins}min manual)`);
     } else {
       console.error('addManualTime failed, Feishu response:', JSON.stringify(res));
       Object.assign(task, snapshot);
-      showSyncToast('⚠ 补录失败，请重试', true);
+      showSyncToast('⚠ Failed to add — please retry', true);
       renderContent();
     }
   });
@@ -2487,12 +2488,12 @@ function addManualTimeReview(id, prefix){
 
   feishuAddManualReviewTime(r).then(res=>{
     if(isFeishuUpdateSuccess(res)){
-      showSyncToast(`✓ 已补录 ${mins} 分钟`);
+      showSyncToast(`✓ Added ${mins} min`);
       feishuLogActionForReview(r, 'Manual', `(+${mins}min manual)`);
     } else {
       console.error('addManualTimeReview failed, Feishu response:', JSON.stringify(res));
       Object.assign(r, snapshot);
-      showSyncToast('⚠ 补录失败，请重试', true);
+      showSyncToast('⚠ Failed to add — please retry', true);
       renderContent();
     }
   });
@@ -4378,32 +4379,92 @@ async function loadAllDataFromFeishu(){
 
 // ── INIT ──
 renderContent();
-loadAllDataFromFeishu();
 renderSubjectPicker('at-subject-picker','atSubject','tasks');
 renderSubjectPicker('ac-type-picker','acType','classes');
 renderSubjectPicker('ar-subject-picker','arSubject','reviews');
 setInterval(autoCompleteOverdueClasses, 60*1000);
-checkDailyRecurringSafetyNet();
+
+// 数据加载 → 安全网检查(可能触发生成+重新加载) → 最后再检测今天还有没有漏生成的，都完成后才做检测，
+// 避免生成流程还没跑完就提前判定"漏了"导致误报
+(async function initApp(){
+  await loadAllDataFromFeishu();
+  await checkDailyRecurringSafetyNet();
+  checkMissingRecurringToday();
+})();
 
 // ── Recurring安全网：每天首次打开页面时调用一次/run-daily-check ──
 // /run-daily-check在Worker内部会先查飞书today是否已经生成过(isAlreadyGenerated)，重复调用是安全的、不会产生重复任务。
 // 用localStorage记一个"今天已经调用过"的标记，避免同一天每次刷新都打一次飞书API配额。
 // 这不是取代Cron——Cron依然是主力(每天固定点跑)，这里只是万一某次Cron因为飞书临时抖动而失败时的补救手段。
-function checkDailyRecurringSafetyNet(){
+// 注意：只有调用"成功"(拿到success响应)才会写入标记；调用失败(比如手机没网、Worker临时故障)不会写标记，
+// 下次刷新页面还会再触发一次，直到某次成功为止——不会因为失败一次就永久放弃当天的检查。
+async function checkDailyRecurringSafetyNet(){
   const todayStr = fmtISO(today);
   const key = 'hw-daily-check-'+todayStr;
-  if(localStorage.getItem(key)) return; // 今天已经调用过了，跳过
-  fetch(WORKER_URL + '/run-daily-check', { method: 'POST' })
-    .then(r => r.json())
-    .then(res => {
-      console.log('checkDailyRecurringSafetyNet:', JSON.stringify(res));
-      if(res && !res.error){
-        localStorage.setItem(key, '1');
-        // 万一Cron真的漏跑、这次补生成了新任务，静默刷新一次数据，让Henry不用手动刷新就能看到今天的任务
-        if(res.generated > 0) loadAllDataFromFeishu();
-      }
-    })
-    .catch(e => console.error('checkDailyRecurringSafetyNet failed:', e));
+  if(localStorage.getItem(key)) return; // 今天已经成功检查过了，跳过
+  try {
+    const r = await fetch(WORKER_URL + '/run-daily-check', { method: 'POST' });
+    const res = await r.json();
+    console.log('checkDailyRecurringSafetyNet:', JSON.stringify(res));
+    if(res && res.success){
+      localStorage.setItem(key, '1');
+      // 万一Cron真的漏跑、这次补生成了新任务，静默刷新一次数据，让Henry不用手动刷新就能看到今天的任务
+      if(res.generated > 0) await loadAllDataFromFeishu();
+    }
+  } catch(e){ console.error('checkDailyRecurringSafetyNet failed:', e); }
+}
+
+// ── 检测今天是否有该生成但没生成的recurring项，有就在顶部显示一条明显的提示 ──
+// 这是纯本地计算(用已经加载好的TASKS/REVIEWS/RECURRING数据比对)，不额外请求飞书，不会拖慢页面。
+// 匹配规则跟worker.js里isAlreadyGenerated保持一致：同一天 + Subject集合相同 + Task Details文字相同 即算已生成。
+function checkMissingRecurringToday(){
+  const bar = document.getElementById('recurringAlertBar');
+  if(!bar) return;
+  const todayStr = fmtISO(today);
+  const todayDayShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][today.getDay()];
+  const todayDateNum = today.getDate();
+  const subjKey = arr => (arr||[]).slice().sort().join(',');
+
+  const missing = RECURRING.filter(rule=>{
+    if(rule.deleted || !rule.active) return false;
+    if(rule.startDate && todayStr < rule.startDate) return false;
+    if(rule.endDate   && todayStr > rule.endDate)   return false;
+    const matches = rule.freq==='daily' ||
+      (rule.freq==='weekly'  && (rule.days||[]).includes(todayDayShort)) ||
+      (rule.freq==='monthly' && (rule.days||[]).includes(String(todayDateNum)));
+    if(!matches) return false;
+    // 在TASKS里找同一天、同学科组合、同名称的记录（recurring只生成Task/Class,不生成Review）
+    const found = TASKS.some(t=>
+      t.type===rule.type &&
+      fmtISO(t.date)===todayStr &&
+      subjKey(t.subjects)===subjKey(rule.subjects) &&
+      t.name===rule.name
+    );
+    return !found;
+  });
+
+  if(missing.length===0){ bar.innerHTML=''; return; }
+
+  bar.innerHTML = `<div style="background:var(--amber-bg);border:1px solid #FDE68A;color:#92400E;padding:10px 16px;border-radius:8px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px">
+    <span>⚠️ ${missing.length} recurring item${missing.length>1?'s':''} may be missing today: ${missing.map(m=>m.name).join(', ')}</span>
+    <button onclick="retryMissingRecurring()" style="padding:5px 12px;background:#92400E;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Retry now</button>
+  </div>`;
+}
+
+// ── 提示条上的"Retry now"按钮：不受每天一次的限制，强制再调一次/run-daily-check ──
+async function retryMissingRecurring(){
+  const bar = document.getElementById('recurringAlertBar');
+  if(bar) bar.innerHTML = `<div style="background:var(--bg);border:1px solid var(--border2);color:var(--text-2);padding:10px 16px;border-radius:8px;margin-bottom:10px;font-size:13px">⏳ Retrying…</div>`;
+  try {
+    const r = await fetch(WORKER_URL + '/run-daily-check', { method: 'POST' });
+    const res = await r.json();
+    console.log('retryMissingRecurring:', JSON.stringify(res));
+    if(res && res.success){
+      localStorage.setItem('hw-daily-check-'+fmtISO(today), '1');
+      await loadAllDataFromFeishu();
+    }
+  } catch(e){ console.error('retryMissingRecurring failed:', e); }
+  checkMissingRecurringToday();
 }
 
 // ── Worker 保活：每3分钟发一次 ping，防止 Cloudflare Worker 冷启动
