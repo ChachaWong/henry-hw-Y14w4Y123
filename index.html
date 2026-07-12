@@ -2205,6 +2205,7 @@ function quickReviewDone(id,prefix){
 async function feishuUpdateReviewQuickDone(r){
   if(!r.feishuId) return null;
   const fields = { 'Review Time': r.totalSecs || 0, 'Review Notes': r.notes || '', 'Reviewed Count': r.reviewedCount || 0 };
+  fields['Daily Log'] = bumpDailyLog(r, r.totalSecs || 0);
   const res = await apiCall(`/reviews/${r.feishuId}`, 'PATCH', fields);
   console.log('feishuUpdateReviewQuickDone:', JSON.stringify(res));
   return res;
@@ -3567,6 +3568,7 @@ const F_TASK = {
   estimate:   'Estimate',       // 数字，分钟
   points:     'Task Reward Points',
   needReview: 'Need Review',
+  dailyLog:   'Daily Log',      // JSON字符串 {"YYYY-MM-DD":秒数}，按天拆分Focus Time用于Stats精确统计
 };
 
 // 计时记录表字段名（与飞书列名完全一致）
@@ -3606,6 +3608,28 @@ function isFeishuCreateSuccess(res){ return !!res?.data?.record?.record_id; }
 function isFeishuUpdateSuccess(res){ return !!res && !res.error && !res.code; }
 
 
+// ── Daily Log 工具函数 ──
+// 把飞书里存的Daily Log JSON字符串解析成{日期:秒数}对象；解析失败/空值一律返回{}，不让脏数据炸掉整个页面
+function parseDailyLog(raw){
+  if(!raw) return {};
+  try { const obj = JSON.parse(raw); return (obj && typeof obj==='object') ? obj : {}; }
+  catch(e){ return {}; }
+}
+// 把"这次同步的最新累计时长(newTotalSecs)"跟"item自己记的上次同步基准(_dailyLogSyncedSecs)"做差，
+// 差值(delta)才是这次真正新增的时长，累加进dailyLog对应的那一天(默认today，补录历史数据时可传dateStr覆盖)。
+// delta<=0(比如undo/时长没变化)时不倒扣，只更新基准——跟totalSecs本身"只加不减"的既有逻辑保持一致。
+// 返回JSON字符串，方便调用方直接塞进要PATCH给飞书的fields对象里。
+function bumpDailyLog(item, newTotalSecs, dateStr){
+  if(!item.dailyLog) item.dailyLog = {};
+  const delta = (newTotalSecs||0) - (item._dailyLogSyncedSecs||0);
+  if(delta > 0){
+    const d = dateStr || fmtISO(today);
+    item.dailyLog[d] = (item.dailyLog[d]||0) + delta;
+  }
+  item._dailyLogSyncedSecs = newTotalSecs||0;
+  return JSON.stringify(item.dailyLog);
+}
+
 // ── 1. 新建任务（Add Task / Add Class 点保存时调用，也用于predicted项第一次被编辑/操作时的懒创建）──
 async function feishuCreateTask(task){
   const d = new Date(task.date);
@@ -3619,7 +3643,12 @@ async function feishuCreateTask(task){
   };
   if(task.estSecs)    fields[F_TASK.estimate] = Math.round(task.estSecs / 60);
   if(task.basePoints) fields[F_TASK.points]   = task.basePoints;
-  if(task.totalSecs)  fields[F_TASK.focusTime] = task.totalSecs;
+  if(task.totalSecs){
+    fields[F_TASK.focusTime] = task.totalSecs;
+    // 补录的历史任务：这段时长发生在补录的那个日期，不是"今天"，dailyLog要按实际日期记，不能记到今天头上
+    const dateKey = fmtISO(new Date(task.completedAt || task.date));
+    fields[F_TASK.dailyLog] = bumpDailyLog(task, task.totalSecs, dateKey);
+  }
   if(task.completedAt) fields['Completed At'] = task.completedAt;  // 补录过去任务时选了"已完成"，把完成时间一起写入
   if(task.recurId){
     const rule = RECURRING.find(r=>r.id===task.recurId||r.feishuId===task.recurId);
@@ -3648,7 +3677,11 @@ async function feishuUpdateStatus(task, statusLabel, elapsedSecs){
   }
   if(!task.feishuId) { console.log('feishuUpdateStatus skipped: no feishuId', task.name); return; }
   const fields = { [F_TASK.status]: statusLabel };
-  if(elapsedSecs != null) fields[F_TASK.focusTime] = elapsedSecs;
+  if(elapsedSecs != null){
+    fields[F_TASK.focusTime] = elapsedSecs;
+    fields[F_TASK.dailyLog] = bumpDailyLog(task, elapsedSecs);
+    task.totalSecs = elapsedSecs; // 顺手让本地task.totalSecs跟着计时器实时更新，之前Pause时这里一直是stale的，只有完成时才会更新
+  }
   fields['Completed At'] = statusLabel === 'Done' ? Date.now() : null;
   if(statusLabel === 'Done'){
     fields['Gap'] = (task.estSecs && elapsedSecs!=null) ? Math.round((task.estSecs - elapsedSecs)/60) : null;  // 分钟,正数=提前完成,负数=超时
@@ -3948,7 +3981,15 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
   };
   if(taskRecordId) fields['Task Record ID'] = taskRecordId;
   if(completedAt)  fields['Completed At'] = completedAt; // 补录过去review选了"已完成"，把完成时间一起写入
-  if(totalSecs)    fields['Review Time'] = totalSecs;
+  const seedItem = { _dailyLogSyncedSecs: 0, dailyLog: {} };
+  let dailyLogJSON = null;
+  if(totalSecs){
+    fields['Review Time'] = totalSecs;
+    // 跟feishuCreateTask一致：补录的历史时长按实际发生日期记，不是"今天"
+    const dateKey = fmtISO(new Date(completedAt || date));
+    dailyLogJSON = bumpDailyLog(seedItem, totalSecs, dateKey);
+    fields['Daily Log'] = dailyLogJSON;
+  }
   const res = await apiCall('/reviews', 'POST', fields);
   console.log('feishuCreateReview:', JSON.stringify(res));
   if(res?.data?.record?.record_id){
@@ -3969,6 +4010,8 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
       doneDate: completedAt ? fmtISO(new Date(completedAt)) : null,
       notes: '',
       totalSecs: totalSecs || 0,
+      dailyLog: seedItem.dailyLog,
+      _dailyLogSyncedSecs: seedItem._dailyLogSyncedSecs,
       points: 0,
       deleted: false,
       sessions: [],
@@ -3986,7 +4029,10 @@ async function feishuUpdateReview(r, status){
   r.reviewStatus = status; // 同步内存状态，避免下次读取r.reviewStatus时还是旧值
   const fields = { 'Review Status': status };
   fields['Completed At'] = status === 'Done' ? Date.now() : null;
-  if(r.totalSecs != null && r.totalSecs >= 0) fields['Review Time'] = r.totalSecs;
+  if(r.totalSecs != null && r.totalSecs >= 0){
+    fields['Review Time'] = r.totalSecs;
+    fields['Daily Log'] = bumpDailyLog(r, r.totalSecs);
+  }
   if(r.notes)     fields['Review Notes'] = r.notes;
   if(r.points)    fields['Review Reward Points'] = r.points;
   if(r.reviewedCount != null) fields['Reviewed Count'] = r.reviewedCount;
@@ -4044,6 +4090,8 @@ function feishuRecordToTask(rec){
     estSecs: f[F_TASK.estimate] ? f[F_TASK.estimate]*60 : null,
     basePoints: Number(f[F_TASK.points]) || 0,
     totalSecs: Number(f[F_TASK.focusTime]) || 0,
+    dailyLog: parseDailyLog(f[F_TASK.dailyLog]),
+    _dailyLogSyncedSecs: Number(f[F_TASK.focusTime]) || 0, // 同步基准：本地这次加载时飞书上已有多少秒，后续只bump增量，不重复计入
     marking: isMarked ? {
       totalQ, wrongQ,
       needReview: !!f[F_TASK.needReview],
@@ -4084,6 +4132,8 @@ function feishuRecordToReview(rec){
     doneDate: f['Completed At'] ? fmtISO(new Date(f['Completed At'])) : null,
     notes: f['Review Notes'] || '',
     totalSecs: Number(f['Review Time']) || 0,
+    dailyLog: parseDailyLog(f['Daily Log']),
+    _dailyLogSyncedSecs: Number(f['Review Time']) || 0,
     points: Number(f['Review Reward Points']) || 0,
     deleted: !!f['Deleted'],
     sessions: [],
