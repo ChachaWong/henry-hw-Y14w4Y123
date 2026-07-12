@@ -3848,7 +3848,9 @@ function addTimeControlHTML(kind, id, minDateStr){
   return `<div style="margin-top:6px">
     <button type="button" onclick="toggleAddTimeForm('${kind}','${id}')" style="padding:4px 9px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer">+ Add time</button>
     <div id="at-form-${kind}-${id}" style="display:none;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
-      <input type="number" id="at-min-${kind}-${id}" placeholder="mins" min="1" style="width:64px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <input type="number" id="at-h-${kind}-${id}" placeholder="h" min="0" style="width:44px;padding:6px 6px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <input type="number" id="at-m-${kind}-${id}" placeholder="m" min="0" max="59" style="width:44px;padding:6px 6px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <input type="number" id="at-s-${kind}-${id}" placeholder="s" min="0" max="59" style="width:44px;padding:6px 6px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
       <input type="date" id="at-date-${kind}-${id}" min="${minDateStr}" max="${maxDateStr}" value="${maxDateStr}" style="padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
       <button type="button" onclick="submitAddTime('${kind}','${id}')" style="padding:5px 10px;background:var(--accent);color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Add</button>
       <button type="button" onclick="toggleAddTimeForm('${kind}','${id}')" style="padding:5px 8px;background:none;border:none;color:var(--text-3);font-size:11px;cursor:pointer">Cancel</button>
@@ -3861,16 +3863,21 @@ function toggleAddTimeForm(kind, id){
   const opening = el.style.display==='none';
   el.style.display = opening ? 'flex' : 'none';
   if(opening){
-    const minInput = document.getElementById('at-min-'+kind+'-'+id);
-    if(minInput) minInput.focus();
+    const hInput = document.getElementById('at-h-'+kind+'-'+id);
+    if(hInput) hInput.focus();
   }
 }
 async function submitAddTime(kind, id){
-  const minInput = document.getElementById('at-min-'+kind+'-'+id);
+  const hInput = document.getElementById('at-h-'+kind+'-'+id);
+  const mInput = document.getElementById('at-m-'+kind+'-'+id);
+  const sInput = document.getElementById('at-s-'+kind+'-'+id);
   const dateInput = document.getElementById('at-date-'+kind+'-'+id);
-  const mins = parseInt(minInput && minInput.value);
+  const h = parseInt(hInput && hInput.value) || 0;
+  const m = parseInt(mInput && mInput.value) || 0;
+  const s = parseInt(sInput && sInput.value) || 0;
   const dateStr = dateInput && dateInput.value;
-  if(!mins || mins<=0){ alert('Enter minutes (more than 0).'); return; }
+  const addedSecs = h*3600 + m*60 + s;
+  if(addedSecs<=0){ alert('Enter a duration (hours/minutes/seconds).'); return; }
   if(!dateStr){ alert('Pick a date.'); return; }
   if(dateInput.min && dateStr<dateInput.min){ alert("Date can't be before this item was created."); return; }
   if(dateInput.max && dateStr>dateInput.max){ alert("Date can't be in the future."); return; }
@@ -3878,7 +3885,6 @@ async function submitAddTime(kind, id){
   const item = kind==='review' ? REVIEWS.find(r=>r.feishuId===id) : TASKS.find(t=>t.id===id);
   if(!item || !item.feishuId){ alert('Item not synced yet, try again in a moment.'); return; }
 
-  const addedSecs = mins*60;
   // 乐观更新：先在本地把总时长加上，界面立刻反映；PATCH失败了再整体回滚到加之前的样子
   const prevTotalSecs = item.totalSecs||0;
   const prevDailyLog = (item.dailyLog||[]).slice();
@@ -3905,7 +3911,7 @@ async function submitAddTime(kind, id){
     return;
   }
 
-  const detail = `+${mins}min for ${dateStr}`;
+  const detail = `+${durFmt(addedSecs)} for ${dateStr}`;
   if(kind==='review') feishuLogActionForReview(item, 'Manual', detail);
   else feishuLogAction(item, 'Manual', item.type==='class'?'Class':'Task', detail);
 
