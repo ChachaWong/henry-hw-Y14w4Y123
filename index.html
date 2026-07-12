@@ -1579,6 +1579,7 @@ function expandedHTML(t){
     }
     rightCol = `<div style="flex:1;min-width:0;padding:10px 12px">
       ${t.totalSecs?`<div style="font-size:12px;color:var(--text-2);margin-bottom:6px">⏱ <strong>${durFmt(t.totalSecs)}</strong></div>`:''}
+      ${addTimeControlHTML('task', t.id, fmtISO(t.date))}
       ${timeCompare}
       <div class="marking-panel" style="border:none;padding:0;background:none;margin:0 -0px">
         <div class="panel-title" style="margin-bottom:5px"><span>Marking</span>${mk.saved?`<span style="font-size:11px;color:var(--green);font-weight:500">✓</span>`:''}</div>
@@ -1623,6 +1624,7 @@ function expandedHTML(t){
           </div>
           ${t.estSecs?`<div class="est-compare" style="margin-bottom:6px">Est: <span>${durFmt(t.estSecs)}</span></div>`:''}
           <div class="btn-row" id="btnrow-${t.id}" style="margin-bottom:10px">${btnRow(t.id,displayState)}</div>
+          ${addTimeControlHTML('task', t.id, fmtISO(t.date))}
         </div>
         <div style="flex:1;display:flex;justify-content:center;align-items:center">
           <div style="position:relative;width:120px;height:120px;flex-shrink:0">
@@ -1754,6 +1756,7 @@ function reviewSubHTML(r, prefix){
       <div style="flex:1;min-width:0">
         <div class="timer-status" style="margin-bottom:6px"><div class="sdot ${displayState}" id="rv-sdot-${id}"></div><span id="rv-stxt-${id}">${stLbl(displayState)}</span></div>
         <div class="btn-row" id="rv-btnrow-${id}" style="margin-bottom:10px">${reviewBtnRow(id,displayState)}</div>
+        ${addTimeControlHTML('review', id, fmtISO(r.date))}
       </div>
       <div style="flex:1;display:flex;justify-content:center">
         <div style="position:relative;width:120px;height:120px;flex-shrink:0">
@@ -1772,6 +1775,7 @@ function reviewSubHTML(r, prefix){
     </div>
   </div>` : `<div style="flex:1;min-width:0;padding:12px 10px">
     <div style="font-size:13px;color:var(--text-3)">Review time: <strong style="color:var(--text)">${durFmt(r.totalSecs)||'—'}</strong></div>
+    ${addTimeControlHTML('review', id, fmtISO(r.date))}
   </div>`;
 
   return `<div class="review-sub" id="rsub-${id}">
@@ -3609,25 +3613,41 @@ function isFeishuUpdateSuccess(res){ return !!res && !res.error && !res.code; }
 
 
 // ── Daily Log 工具函数 ──
-// 把飞书里存的Daily Log JSON字符串解析成{日期:秒数}对象；解析失败/空值一律返回{}，不让脏数据炸掉整个页面
+// Daily Log 存的是"追加式动作列表"，不是汇总字典：[{date,secs,source}, ...]。
+// 每次有新增时长(不管是计时器算出来的还是手动Add Time输入的)，都只是往列表末尾push一条新记录，
+// 不用读改写某个日期的桶。哪天一共花了多少时间，交给统计函数在读取时按date分组求和，
+// 写入这一侧永远是最简单的"追加"，不用维护累计状态，不容易因为同步基准算错导致数据对不上。
+// 解析飞书存的Daily Log JSON字符串；解析失败/空值/旧格式(字典)一律返回[]，不让脏数据炸掉整个页面
 function parseDailyLog(raw){
-  if(!raw) return {};
-  try { const obj = JSON.parse(raw); return (obj && typeof obj==='object') ? obj : {}; }
-  catch(e){ return {}; }
+  if(!raw) return [];
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; }
+  catch(e){ return []; }
 }
-// 把"这次同步的最新累计时长(newTotalSecs)"跟"item自己记的上次同步基准(_dailyLogSyncedSecs)"做差，
-// 差值(delta)才是这次真正新增的时长，累加进dailyLog对应的那一天(默认today，补录历史数据时可传dateStr覆盖)。
-// delta<=0(比如undo/时长没变化)时不倒扣，只更新基准——跟totalSecs本身"只加不减"的既有逻辑保持一致。
+// 计时器专用：把"这次同步的最新累计时长(newTotalSecs)"跟"item自己记的上次同步基准(_dailyLogSyncedSecs)"做差，
+// 差值(delta)才是这次真正新增的时长，push一条新记录(默认today，补录历史数据时可传dateStr覆盖)。
+// delta<=0(比如undo/时长没变化)时不追加，只更新基准——跟totalSecs本身"只加不减"的既有逻辑保持一致。
 // 返回JSON字符串，方便调用方直接塞进要PATCH给飞书的fields对象里。
 function bumpDailyLog(item, newTotalSecs, dateStr){
-  if(!item.dailyLog) item.dailyLog = {};
+  if(!item.dailyLog) item.dailyLog = [];
   const delta = (newTotalSecs||0) - (item._dailyLogSyncedSecs||0);
   if(delta > 0){
-    const d = dateStr || fmtISO(today);
-    item.dailyLog[d] = (item.dailyLog[d]||0) + delta;
+    item.dailyLog.push({ date: dateStr || fmtISO(today), secs: delta, source: 'timer' });
   }
   item._dailyLogSyncedSecs = newTotalSecs||0;
   return JSON.stringify(item.dailyLog);
+}
+// 手动Add Time专用：加了多少秒是用户直接输入的、已知的增量，不需要像计时器那样从"累计总时长"反推，
+// 直接push一条source='manual'的记录即可；同时还是要同步推进_dailyLogSyncedSecs基准，
+// 保持跟totalSecs的关系不错位，避免下一次计时器流程算delta时算错。
+function addManualDailyLog(item, addedSecs, dateStr){
+  if(!item.dailyLog) item.dailyLog = [];
+  item.dailyLog.push({ date: dateStr, secs: addedSecs, source: 'manual' });
+  item._dailyLogSyncedSecs = (item._dailyLogSyncedSecs||0) + addedSecs;
+  return JSON.stringify(item.dailyLog);
+}
+// 统计用：某个item在dailyLog里，某一天(dateStr)所有条目求和。Stats那块以后统一走这个函数。
+function getDailyLogSecs(item, dateStr){
+  return (item.dailyLog||[]).reduce((a,e)=>a+((e&&e.date===dateStr)?(e.secs||0):0), 0);
 }
 
 // ── 1. 新建任务（Add Task / Add Class 点保存时调用，也用于predicted项第一次被编辑/操作时的懒创建）──
@@ -3817,6 +3837,81 @@ async function feishuLogActionForReview(r, actionLabel, extraDetail){
   });
 }
 
+// ════════════════════════════════════════════
+// ── Add Time：手动补录时长(比如在外面用别的表计时了，回来手动加进来) ──
+// ════════════════════════════════════════════
+// Task/Review的Details面板里都有一个"+ Add time"入口，不管当前是Done还是还在计时中都能用。
+// 这条写入路径是完全独立的：只PATCH总时长字段(Focus Time / Review Time) + Daily Log，
+// 不碰Status字段，也不碰任何计时相关的localStorage key —— 不会影响"刷新页面自动变Paused"那套逻辑。
+function addTimeControlHTML(kind, id, minDateStr){
+  const maxDateStr = fmtISO(today);
+  return `<div style="margin-top:6px">
+    <button type="button" onclick="toggleAddTimeForm('${kind}','${id}')" style="padding:4px 9px;background:var(--bg);border:1px solid var(--border2);border-radius:6px;font-size:11px;font-weight:600;color:var(--text-2);cursor:pointer">+ Add time</button>
+    <div id="at-form-${kind}-${id}" style="display:none;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap">
+      <input type="number" id="at-min-${kind}-${id}" placeholder="mins" min="1" style="width:64px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace;text-align:center">
+      <input type="date" id="at-date-${kind}-${id}" min="${minDateStr}" max="${maxDateStr}" value="${maxDateStr}" style="padding:5px 7px;border:1px solid var(--border2);border-radius:6px;font-size:12px;font-family:'DM Mono',monospace">
+      <button type="button" onclick="submitAddTime('${kind}','${id}')" style="padding:5px 10px;background:var(--accent);color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Add</button>
+      <button type="button" onclick="toggleAddTimeForm('${kind}','${id}')" style="padding:5px 8px;background:none;border:none;color:var(--text-3);font-size:11px;cursor:pointer">Cancel</button>
+    </div>
+  </div>`;
+}
+function toggleAddTimeForm(kind, id){
+  const el = document.getElementById('at-form-'+kind+'-'+id);
+  if(!el) return;
+  const opening = el.style.display==='none';
+  el.style.display = opening ? 'flex' : 'none';
+  if(opening){
+    const minInput = document.getElementById('at-min-'+kind+'-'+id);
+    if(minInput) minInput.focus();
+  }
+}
+async function submitAddTime(kind, id){
+  const minInput = document.getElementById('at-min-'+kind+'-'+id);
+  const dateInput = document.getElementById('at-date-'+kind+'-'+id);
+  const mins = parseInt(minInput && minInput.value);
+  const dateStr = dateInput && dateInput.value;
+  if(!mins || mins<=0){ alert('Enter minutes (more than 0).'); return; }
+  if(!dateStr){ alert('Pick a date.'); return; }
+  if(dateInput.min && dateStr<dateInput.min){ alert("Date can't be before this item was created."); return; }
+  if(dateInput.max && dateStr>dateInput.max){ alert("Date can't be in the future."); return; }
+
+  const item = kind==='review' ? REVIEWS.find(r=>r.feishuId===id) : TASKS.find(t=>t.id===id);
+  if(!item || !item.feishuId){ alert('Item not synced yet, try again in a moment.'); return; }
+
+  const addedSecs = mins*60;
+  // 乐观更新：先在本地把总时长加上，界面立刻反映；PATCH失败了再整体回滚到加之前的样子
+  const prevTotalSecs = item.totalSecs||0;
+  const prevDailyLog = (item.dailyLog||[]).slice();
+  const prevSyncedSecs = item._dailyLogSyncedSecs||0;
+
+  const newTotal = prevTotalSecs + addedSecs;
+  const dailyLogJSON = addManualDailyLog(item, addedSecs, dateStr);
+  item.totalSecs = newTotal;
+  toggleAddTimeForm(kind, id);
+  renderContent();
+
+  const fieldsPatch = kind==='review'
+    ? { 'Review Time': newTotal, 'Daily Log': dailyLogJSON }
+    : { [F_TASK.focusTime]: newTotal, [F_TASK.dailyLog]: dailyLogJSON };
+  const path = kind==='review' ? `/reviews/${item.feishuId}` : `/tasks/${item.feishuId}`;
+  const res = await apiCall(path, 'PATCH', fieldsPatch);
+
+  if(!isFeishuUpdateSuccess(res)){
+    item.totalSecs = prevTotalSecs;
+    item.dailyLog = prevDailyLog;
+    item._dailyLogSyncedSecs = prevSyncedSecs;
+    showSyncToast('✗ Failed to add time, please retry', true);
+    renderContent();
+    return;
+  }
+
+  const detail = `+${mins}min for ${dateStr}`;
+  if(kind==='review') feishuLogActionForReview(item, 'Manual', detail);
+  else feishuLogAction(item, 'Manual', item.type==='class'?'Class':'Task', detail);
+
+  showSyncToast('✓ Time added');
+}
+
 // ── 4. 新建Class记录（Add Class时调用）──
 async function feishuCreateClass(task){
   const d = new Date(task.date);
@@ -3981,7 +4076,7 @@ async function feishuCreateReview({date, subject, subjects, name, totalQ, wrongQ
   };
   if(taskRecordId) fields['Task Record ID'] = taskRecordId;
   if(completedAt)  fields['Completed At'] = completedAt; // 补录过去review选了"已完成"，把完成时间一起写入
-  const seedItem = { _dailyLogSyncedSecs: 0, dailyLog: {} };
+  const seedItem = { _dailyLogSyncedSecs: 0, dailyLog: [] };
   let dailyLogJSON = null;
   if(totalSecs){
     fields['Review Time'] = totalSecs;
